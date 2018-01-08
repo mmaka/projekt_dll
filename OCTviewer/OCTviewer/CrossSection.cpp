@@ -44,10 +44,16 @@ unsigned int CrossSection::TworzTabliceWerteksow(Werteks*& werteksy) {
 
 	werteksy = new Werteks[4];
 
-	werteksy[0] = Werteks(-x0, -y0, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f);
-	werteksy[1] = Werteks(x0, -y0, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
-	werteksy[2] = Werteks(-x0, y0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-	werteksy[3] = Werteks(x0, y0, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+//	werteksy[0] = Werteks(-x0, -y0, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f);
+//	werteksy[1] = Werteks(x0, -y0, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f);
+//	werteksy[2] = Werteks(-x0, y0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+//	werteksy[3] = Werteks(x0, y0, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+
+	werteksy[0] = Werteks(-x0, -y0, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+	werteksy[1] = Werteks(x0, -y0, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+	werteksy[2] = Werteks(-x0, y0, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+	werteksy[3] = Werteks(x0, y0, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
 
 
 	return 4;

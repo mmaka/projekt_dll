@@ -1,19 +1,8 @@
-﻿  Compiling CUDA source file CudaTekstury.cu...
-  
-  C:\Users\maka\Documents\Visual Studio 2015\Projects\OCTviewer\OCTviewer\OCTviewer>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v9.0\bin\nvcc.exe" -gencode=arch=compute_30,code=\"sm_30,compute_30\" --use-local-env --cl-version 2015 -ccbin "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\x86_amd64" -x cu  -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v9.0\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v9.0\include"  -G   --keep-dir x64\Debug -maxrregcount=0  --machine 64 --compile -cudart static  -g   -D_DEBUG -D_WINDOWS -D_USRDLL -DOCTVIEWER_EXPORTS -D_WINDLL -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /FS /Zi /RTC1 /MDd " -o x64\Debug\CudaTekstury.cu.obj "C:\Users\maka\Documents\Visual Studio 2015\Projects\OCTviewer\OCTviewer\OCTviewer\CudaTekstury.cu" 
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(66): warning : variable "tmp" was declared but never referenced
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(86): warning : variable "tmp" was declared but never referenced
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(105): warning : variable "tmp" was declared but never referenced
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(66): warning : variable "tmp" was declared but never referenced
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(86): warning : variable "tmp" was declared but never referenced
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(105): warning : variable "tmp" was declared but never referenced
-  CudaTekstury.cu
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\CudaTekstury.cuh(68): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\CudaTekstury.cuh(69): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\CudaTekstury.cuh(70): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\CudaTekstury.cuh(128): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(119): warning C4244: 'argument': conversion from 'double' to 'std::size_t', possible loss of data
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(127): warning C4244: 'argument': conversion from 'double' to 'std::size_t', possible loss of data
-C:/Users/maka/Documents/Visual Studio 2015/Projects/OCTviewer/OCTviewer/OCTviewer/CudaTekstury.cu(134): warning C4244: 'argument': conversion from 'double' to 'std::size_t', possible loss of data
+﻿  Okno.cpp
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(72): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(73): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(74): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(140): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\okno.cpp(193): warning C4244: 'initializing': conversion from 'LRESULT' to 'long', possible loss of data
   OCTviewer.vcxproj -> C:\Users\maka\Documents\Visual Studio 2015\Projects\OCTviewer\OCTviewer\x64\Debug\OCTviewer.dll
   OCTviewer.vcxproj -> C:\Users\maka\Documents\Visual Studio 2015\Projects\OCTviewer\OCTviewer\x64\Debug\OCTviewer.pdb (Full PDB)

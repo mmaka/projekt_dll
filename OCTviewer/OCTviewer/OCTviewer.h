@@ -42,4 +42,3 @@ extern "C" OCTVIEWER_API void clear();
 
 extern HINSTANCE hInstance;
 
-

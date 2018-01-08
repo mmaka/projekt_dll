@@ -33,11 +33,11 @@ void CudaTekstury::init() {
 
 void CudaTekstury::pobierzDaneCPU() {
 
-//	MessageBox(NULL, "przed", "", MB_OK);
+	MessageBox(NULL, "przed", "", MB_OK);
 	HANDLE_ERROR(cudaMalloc(&daneGPU, calkowityRozmiarDanych() *sizeof(oct_t)));
-//	MessageBox(NULL, "miedzy", "", MB_OK);
+	MessageBox(NULL, "miedzy", "", MB_OK);
 	HANDLE_ERROR(cudaMemcpy(daneGPU, daneCPU, calkowityRozmiarDanych() * sizeof(oct_t), cudaMemcpyHostToDevice));
-//	MessageBox(NULL, "po", "", MB_OK);
+	MessageBox(NULL, "po", "", MB_OK);
 //	delete[] daneCPU;
 //	daneCPU = nullptr;
 }
@@ -46,26 +46,87 @@ void CudaTekstury::wczytajBMP(char* plik) {
 	
 	int szer, wys;
 	unsigned long *tmp = WczytajObrazZPlikuBitmap(NULL,plik, szer, wys, false, 255);
-	//daneCPU = new size_t[wys*szer];
-	//memcpy(daneCPU, tmp, wys*szer * 4 * sizeof( char));
+	daneCPU = new oct_t[wys*szer];
+	memcpy(daneCPU, tmp, wys*szer * sizeof(oct_t));
 }
 
 void __global__ tworzenieBskanu(cudaSurfaceObject_t surf, const oct_t* source, size_t indeks, uchar3 *kolory) {
 
 	if (threadIdx.x < blockDim.x) {
-
-		//int value = (int)source[indeks*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x];
-		oct_t value = source[indeks*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x];
 		
+		//do wyswietlania napisu LAB
+		indeks = 0;
+		unsigned int value = (unsigned int)source[indeks*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x];
+		surf2Dwrite(value, surf, threadIdx.x * sizeof(unsigned long), blockIdx.x);
+		
+
+		/*
+		//do1
 		uchar4 data;
+		if (blockIdx.x < gridDim.x / 3) {
+
+			if (threadIdx.x < blockDim.x / 2) {
+
+				data.x = 150;
+				data.y = 0;
+				data.z = 0;
+
+			}
+			else {
+
+				data.x = 0;
+				data.y = 150;
+				data.z = 0;
+
+			}
+		}
+		else {
+
+			if (threadIdx.x < blockDim.x / 2) {
+
+				data.x = 0;
+				data.y = 0;
+				data.z = 150;
+
+			}
+			else {
+
+				data.x = 255;
+				data.y = 255;
+				data.z = 255;
+
+
+			}
+
+		}
+
+		data.w = 0;
+		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+		*/
+	
+		/*
+		//do2 - najlepiej na kostce, oct_t = char
+		uchar4 data;
+		data.x = threadIdx.x / 2;
+		data.y = 0;
+		data.z = 0;
+		data.w = 0;
+		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+		
+		*/
+		/*
+		//do3
+		unsigned char value = source[indeks*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x];
+		uchar4 data;//x=R,y=G,z=B,w=A	
 		data.x = kolory[value].x;
 		data.y = kolory[value].y;
 		data.z = kolory[value].z;
-		data.w = 255;
-		
-		unsigned int tmp = (data.w << 24) + (data.z << 16) + (data.y << 8) + (data.x);
-
+		data.w = 0;
 		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+		*/
+
+
+	//	unsigned int tmp = (data.w << 24) + (data.z << 16) + (data.y << 8) + (data.x);
 		//surf2Dwrite(source[indeks*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x], surf, threadIdx.x * sizeof(oct_t), blockIdx.x);
 		//surf2Dwrite(mapaSzarosci[source[indeks*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x]], surf, threadIdx.x * sizeof(oct_t), blockIdx.x);
 
@@ -75,17 +136,78 @@ void __global__ tworzenieBskanu(cudaSurfaceObject_t surf, const oct_t* source, s
 void __global__ tworzeniePrzekrojuPoprzecznego(cudaSurfaceObject_t surf, const oct_t* source, size_t indeks, size_t rozmiarAskanu, uchar3 *kolory) {
 
 	if (threadIdx.x < blockDim.x) {
+		
+		//do wyswietlania napisu LAB
+		unsigned int value = (unsigned int)source[indeks*blockDim.x + threadIdx.x];
+		surf2Dwrite(value, surf, threadIdx.x * sizeof(unsigned int), blockIdx.x);
+		
+	
+		/*
+		//do1
+		uchar4 data;
+		if (blockIdx.x < gridDim.x / 3) {
 
-		//int value = (int)source[blockIdx.x*rozmiarAskanu*blockDim.x + indeks*blockDim.x + threadIdx.x];
-		oct_t value = source[blockIdx.x*rozmiarAskanu*blockDim.x + indeks*blockDim.x + threadIdx.x];
+			if (threadIdx.x < blockDim.x / 2) {
+
+				data.x = 150;
+				data.y = 0;
+				data.z = 0;
+
+			} else {
+
+				data.x = 0;
+				data.y = 150;
+				data.z = 0;
+
+			}
+		}	else {
+
+			if (threadIdx.x < blockDim.x / 2) {
+
+				data.x = 0;
+				data.y = 0;
+				data.z = 150;
+
+			} else {
+
+				data.x = 255;
+				data.y = 255;
+				data.z = 255;
+				
+			}
+		}
+		data.w = 0;
+		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+		*/
+
+		/*
+		//do2
+		uchar4 data;
+		data.x = 0;
+		data.y = threadIdx.x / 2;
+		data.z = 0;
+		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+		*/
+
+
+		//unsigned char value = source[blockIdx.x*rozmiarAskanu*blockDim.x + indeks*blockDim.x + threadIdx.x];
+		
+		
+		/*
+		//do3
+		unsigned char value = source[blockIdx.x*rozmiarAskanu*blockDim.x + indeks*blockDim.x + threadIdx.x];
 		uchar4 data;
 		data.x = kolory[value].x;
 		data.y = kolory[value].y;
 		data.z = kolory[value].z;
-		data.w = 255;
-		unsigned int tmp = (data.w << 24) + (data.z << 16) + (data.y << 8) + (data.x);
+		data.w = 0;
 		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+	*/
 
+	//	unsigned int tmp = (data.w << 24) + (data.z << 16) + (data.y << 8) + (data.x);
+	
+	
+	
 		//surf2Dwrite(source[blockIdx.x*rozmiarAskanu*blockDim.x + indeks*blockDim.x + threadIdx.x], surf, threadIdx.x * sizeof(oct_t), blockIdx.x);
 		//surf2Dwrite(mapaSzarosci[source[blockIdx.x*rozmiarAskanu*blockDim.x + indeks*blockDim.x + threadIdx.x]], surf, threadIdx.x * sizeof(oct_t), blockIdx.x);
 	}
@@ -94,17 +216,78 @@ void __global__ tworzeniePrzekrojuPoprzecznego(cudaSurfaceObject_t surf, const o
 void __global__ tworzeniePrzekrojuPoziomego(cudaSurfaceObject_t surf, const oct_t* source, size_t indeks, size_t szerokoscBskanu, uchar3 *kolory) {
 
 	if (threadIdx.x < blockDim.x) {
+		
+		//do wyswietlania napisu LAB
+		unsigned int value = (unsigned int)source[szerokoscBskanu * blockIdx.x + indeks];
+		surf2Dwrite(value, surf, threadIdx.x * sizeof(unsigned long), blockIdx.x);
+		
 
-		//int value = (int)source[threadIdx.x*szerokoscBskanu*gridDim.x + szerokoscBskanu * blockIdx.x + indeks];
-		oct_t value = source[threadIdx.x*szerokoscBskanu*gridDim.x + szerokoscBskanu * blockIdx.x + indeks];
+		/*
+		//do1
+		uchar4 data;
+		if (blockIdx.x < gridDim.x / 3) {
+
+			if (threadIdx.x <= blockDim.x / 2) {
+
+				data.x = 150;
+				data.y = 0;
+				data.z = 0;
+
+			}	else {
+
+				data.x = 0;
+				data.y = 150;
+				data.z = 0;
+
+			}
+		}	else {
+
+			if (threadIdx.x <= blockDim.x / 2) {
+
+				data.x = 0;
+				data.y = 0;
+				data.z = 150;
+
+			}	else {
+
+				data.x = 255;
+				data.y = 255;
+				data.z = 255;
+
+			}
+		}
+
+		data.w = 0;
+
+		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+		*/
+
+		/*
+		//do2
+		uchar4 data;
+		data.x = 0;
+		data.y = 0;
+		data.z = threadIdx.x / 2;
+		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+		*/
+
+
+		
+	/*
+		//do3
+		unsigned char value = source[threadIdx.x*szerokoscBskanu*gridDim.x + szerokoscBskanu * blockIdx.x + indeks];
 		uchar4 data;
 		data.x = kolory[value].x;
 		data.y = kolory[value].y;
 		data.z = kolory[value].z;
-		data.w = 255;
-		unsigned int tmp = (data.w << 24) + (data.z << 16) + (data.y << 8) + (data.x);
+		data.w = 0;
 		surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
+	*/	
 
+
+		//unsigned char value = source[threadIdx.x*szerokoscBskanu*gridDim.x + szerokoscBskanu * blockIdx.x + indeks];
+//		unsigned int tmp = (data.w << 24) + (data.z << 16) + (data.y << 8) + (data.x);
+		//surf2Dwrite(data, surf, threadIdx.x * sizeof(uchar4), blockIdx.x);
 		//surf2Dwrite(source[threadIdx.x*szerokoscBskanu*gridDim.x + szerokoscBskanu * blockIdx.x + indeks], surf, threadIdx.x * sizeof(oct_t), blockIdx.x);
 		//surf2Dwrite(mapaSzarosci[source[threadIdx.x*szerokoscBskanu*gridDim.x + szerokoscBskanu * blockIdx.x + indeks]], surf, threadIdx.x * sizeof(oct_t), blockIdx.x);
 	}
@@ -114,6 +297,7 @@ void __global__ tworzeniePrzekrojuPoziomego(cudaSurfaceObject_t surf, const oct_
 
 void CudaTekstury::launch_bskany(size_t i) {
 
+//	MessageBox(NULL, "bskany", "", MB_OK);
 	dim3 grid(rozmiarAskanu);
 	dim3 block(szerokoscBskanu);
 	tworzenieBskanu << <grid, block, 0, streams[i] >> > (bskany[i], daneGPU, floor(i*krok_bskan),d_mapaKolorow);
@@ -147,11 +331,11 @@ void CudaTekstury::tworzPrzekroje() {
 	MessageBox(NULL, "tworzPrzekroje2", "", MB_OK);
 	for (size_t i = 0; i < liczbaPrzekrojowPoprzecznych; ++i)
 		launch_przekrojePoprzeczne(i);
-
+	
 	MessageBox(NULL, "tworzPrzekroje3", "", MB_OK);
 	for (size_t i = 0; i < liczbaPrzekrojowPoziomych; ++i)
 		launch_przekrojePoziome(i);
-	
+
 	cudaDeviceSynchronize();
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
@@ -178,11 +362,13 @@ void CudaTekstury::przygotowanieTekstur() {
 	for (size_t i = 0; i != liczbaPrzekrojowPoprzecznych; ++i) {
 
 		tworzenie_tekstur(&tabliceCuda[i+liczbaBskanow], &przekrojePoprzeczne[i]);
-	}
 
+	}
+	
 	for (size_t i = 0; i != liczbaPrzekrojowPoziomych; ++i) {
 
 		tworzenie_tekstur(&tabliceCuda[i+liczbaBskanow+liczbaPrzekrojowPoprzecznych], &przekrojePoziome[i]);
+		//tworzenie_tekstur(&tabliceCuda[i], &przekrojePoziome[i]);
 	}
 	
 }

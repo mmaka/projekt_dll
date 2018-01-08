@@ -200,7 +200,7 @@ LRESULT __stdcall OknoGL::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 	const int okresTimeraSwobodnychObrotowKamery = 50;
 
 	const int identyfikatorTimeraRysowania = 2;
-	const int okresTimeraRysowania = 1000;
+	const int okresTimeraRysowania = 10;
 
 	switch (message) {
 
@@ -238,12 +238,17 @@ LRESULT __stdcall OknoGL::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 			"uniform bool flaga = true;\n" <<
 			"uniform sampler2D ProbnikTekstury;\n" <<
 			"void main(void) {\n" <<
-			"vec4 teksel = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n" <<
+			"vec4 teksel = vec4(1.0f, 1.0f, 1.0f,1.0f);\n" <<
 			"if (Teksturowanie) {\n" <<
 			"teksel = texture2D(ProbnikTekstury, wspTekstur);\n" <<
 			"teksel.a = kolor.a;\n" <<
-			"kolor_out = teksel;} else kolor_out = kolor;\n" <<
-			"//kolor_out = vec4(1.0f - kolor_out.r, 1.0f - kolor_out.g, 1.0f - kolor_out.b, kolor_out.a);\n"<<
+			"kolor_out = teksel;\n" <<
+			"//kolor_out.r = teksel.r\n;" <<
+			"//kolor_out.g = teksel.g;\n" <<
+			"//kolor_out.b = teksel.b;\n" <<
+			"//kolor_out.a = kolor.a;}\n" <<
+			"}else kolor_out = kolor; \n" <<
+			"kolor_out = vec4(1.0f - kolor_out.r, 1.0f - kolor_out.g, 1.0f - kolor_out.b, kolor_out.a);\n"<<
 			"}";
 
 		idProgramuShaderow = PrzygotujShadery(vs.str().c_str(), fs.str().c_str(), false);
@@ -253,20 +258,34 @@ LRESULT __stdcall OknoGL::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 			MessageBox(NULL, "Przygotowanie shaderow nie powiodlo sie", "OCTviewer", MB_OK | MB_ICONERROR);
 			exit(EXIT_FAILURE);
 		}
-	//	MessageBox(NULL, "test1", " ", MB_OK);
+		MessageBox(NULL, "test1", " ", MB_OK);
 		UmiescInformacjeNaPaskuTytulu(hWnd);
 		tekstury = new TomogramTekstury(parametryWyswietlania);
 		tekstury->init();
-	//	MessageBox(NULL, "test2", " ", MB_OK);
+		MessageBox(NULL, "test2", " ", MB_OK);
 		liczbaPrzekrojow = przygotujPrzekroje();
-//		MessageBox(NULL, "test3", " ", MB_OK);
+		MessageBox(NULL, "test3", " ", MB_OK);
 		cudaTekstury->init();
 		
-	//	MessageBox(NULL, "test4", " ", MB_OK);
-		ustanowienieWspolpracyCudaOpenGL(tekstury->indeksyTekstur(), cudaTekstury->cudaArray(), parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych +parametryWyswietlania.liczbaPrzekrojowPoziomych);
-//		MessageBox(NULL, "test5", " ", MB_OK);
+		MessageBox(NULL, "test4", " ", MB_OK);
+		ustanowienieWspolpracyCudaOpenGL(tekstury->indeksyTekstur(), cudaTekstury->cudaArray(), parametryWyswietlania.liczbaBskanow+ parametryWyswietlania.liczbaPrzekrojowPoprzecznych  + parametryWyswietlania.liczbaPrzekrojowPoziomych);
+		MessageBox(NULL, "test5", " ", MB_OK);
 		cudaTekstury->przygotowanieTekstur();
 		
+
+		cudaTekstury->wczytajBMP("lab512x256.bmp");
+		//cudaTekstury->wczytajDaneBinarne("kostka.bin");
+		//	cTekstury->wprowadzTestoweDane();
+		//MessageBox(NULL, "load2", "", MB_OK);
+		cudaTekstury->pobierzDaneCPU();
+		//MessageBox(NULL, "load3", "", MB_OK);
+		cudaTekstury->tworzPrzekroje();
+
+
+
+
+
+
 		UstawienieSceny();
 		if (swobodneObrotyKameryMozliwe) {
 
@@ -381,7 +400,7 @@ void OknoGL::UstawienieSceny(bool rzutowanieIzometryczne) {
 	glUniform4fv(parametrKolor, 1, kolor);
 
 	GLint parametrPrzezroczystosc = glGetUniformLocation(idProgramuShaderow, "przezroczystosc");
-	float przezroczystosc = 1.0f;// 0.005f;
+	float przezroczystosc = 0.02f;
 	glUniform1f(parametrPrzezroczystosc, przezroczystosc);
 
 	GLint parametrMacierzSwiata = glGetUniformLocation(idProgramuShaderow, "macierzSwiata");
@@ -414,7 +433,7 @@ void OknoGL::UstawienieSceny(bool rzutowanieIzometryczne) {
 
 void OknoGL::RysujScene() {
 
-	glClear(GL_COLOR_BUFFER_BIT);// | GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT| GL_DEPTH_BUFFER_BIT); //sprawdz czy GL_DEPTH_BUFFER_BIT jest w ogole potrzebny
 	RysujAktorow();//uwaga na wiele watkow str 242 Nowoczesny OpenGL
 	SwapBuffers(uchwytDC);
 	glFinish();
@@ -792,7 +811,7 @@ unsigned int OknoGL::przygotujPrzekroje() {
 		przekroje[0]->IndeksTekstury = indeksyTekstur[0];
 		break;
 	case TYPE_3D:
-		liczbaPrzekrojow = parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych +parametryWyswietlania.liczbaPrzekrojowPoziomych;
+		liczbaPrzekrojow = parametryWyswietlania.liczbaBskanow+ parametryWyswietlania.liczbaPrzekrojowPoprzecznych  + parametryWyswietlania.liczbaPrzekrojowPoziomych;
 		przekroje = new CrossSection*[liczbaPrzekrojow];
 
 		float rozmiarX = parametryWyswietlania.x_mm*parametryWyswietlania.xSizeScale;
@@ -806,23 +825,33 @@ unsigned int OknoGL::przygotujPrzekroje() {
 		for (size_t i = 0, end = parametryWyswietlania.liczbaBskanow; i != end; ++i) {
 
 			przekroje[i] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, rozmiarX, rozmiarY);
-			przekroje[i]->MacierzSwiata = Macierz4::Przesuniecie(0.0f, 0.0f, -bskany_krok*(end - 1 - i));
+			przekroje[i]->MacierzSwiata = Macierz4::Przesuniecie(0.0f, 0.0f, rozmiarZ / 2 - bskany_krok*(end - 1 - i));
 			przekroje[i]->IndeksTekstury = indeksyTekstur[i];
 		}
 
 		for (size_t i = 0, end = parametryWyswietlania.liczbaPrzekrojowPoprzecznych; i != end; ++i) {
 
 			przekroje[i + parametryWyswietlania.liczbaBskanow] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, rozmiarX, rozmiarZ);
-			przekroje[i + parametryWyswietlania.liczbaBskanow]->MacierzSwiata = Macierz4::Przesuniecie(0.0f, przekroje_poprzeczne_krok*(end - 1 - i) - rozmiarY / 2, -rozmiarZ / 2) *Macierz4::ObrotX(-270);
+			przekroje[i + parametryWyswietlania.liczbaBskanow]->MacierzSwiata = Macierz4::Przesuniecie(0.0f, przekroje_poprzeczne_krok*(i) - rozmiarY / 2, 0) *Macierz4::ObrotX(90);
+			//przekroje[i + parametryWyswietlania.liczbaBskanow]->MacierzSwiata = Macierz4::Przesuniecie(2.5f, przekroje_poprzeczne_krok*(end - 1 - i) - rozmiarY / 2, 0) *Macierz4::ObrotX(90);
 			przekroje[i + parametryWyswietlania.liczbaBskanow]->IndeksTekstury = indeksyTekstur[i + parametryWyswietlania.liczbaBskanow];
 
+			//przekroje[i] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, rozmiarX, rozmiarZ);
+			//przekroje[i]->MacierzSwiata = Macierz4::Przesuniecie(0.0f, przekroje_poprzeczne_krok*(end - 1 - i) - rozmiarY / 2, -rozmiarZ / 2) *Macierz4::ObrotX(-270);
+			//przekroje[i]->IndeksTekstury = indeksyTekstur[i];
+
 		}
-	
+		
 		for (size_t i = 0, end = parametryWyswietlania.liczbaPrzekrojowPoziomych; i != end; ++i) {
 
 			przekroje[i + parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, rozmiarZ, rozmiarY);
-			przekroje[i + parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych]->MacierzSwiata = Macierz4::Przesuniecie(i*przekroje_poziome_krok - rozmiarX / 2, 0.0f, -((parametryWyswietlania.liczbaBskanow - 1)*bskany_krok - rozmiarZ / 2))*Macierz4::ObrotY(270);
+			//przekroje[i + parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych]->MacierzSwiata = Macierz4::Przesuniecie(i*przekroje_poziome_krok - rozmiarX / 2, 0.0f, -((parametryWyswietlania.liczbaBskanow - 1)*bskany_krok - rozmiarZ / 2))*Macierz4::ObrotY(270);
+			przekroje[i + parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych]->MacierzSwiata = Macierz4::Przesuniecie(i*przekroje_poziome_krok - rozmiarX / 2, 0.0f, -((parametryWyswietlania.liczbaBskanow - 1)*bskany_krok) + rozmiarZ)*Macierz4::ObrotY(270);
 			przekroje[i + parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych]->IndeksTekstury = indeksyTekstur[i + parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych];
+
+			//		przekroje[i] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, rozmiarZ, rozmiarY);
+			//		przekroje[i]->MacierzSwiata = Macierz4::Przesuniecie(i*przekroje_poziome_krok - rozmiarX / 2, 0.0f, -((parametryWyswietlania.liczbaBskanow - 1)*bskany_krok - rozmiarZ / 2))*Macierz4::ObrotY(270);
+			//		przekroje[i]->IndeksTekstury = indeksyTekstur[i];
 		}
 	
 		break;

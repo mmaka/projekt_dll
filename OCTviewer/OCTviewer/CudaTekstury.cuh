@@ -10,6 +10,9 @@
 #include"PlikBMP.h"
 #include<sstream>
 
+
+
+
 static void HandlerError(cudaError_t err, const char *file, int line) {
 	if (err != cudaSuccess) {
 		printf("%s in %s at line %d\n", cudaGetErrorString(err),
@@ -20,7 +23,8 @@ static void HandlerError(cudaError_t err, const char *file, int line) {
 
 #define HANDLE_ERROR(err) (HandlerError(err,__FILE__,__LINE__))
 
-using oct_t = char;
+//using oct_t = unsigned long;
+using oct_t = unsigned long;
 
 class CudaTekstury {
 
@@ -55,7 +59,7 @@ class CudaTekstury {
 	uchar3 *d_mapaKolorow;
 
 public:
-	explicit CudaTekstury(visualizationParams params): 
+	 explicit CudaTekstury(visualizationParams params): 
 		liczbaBskanow(params.liczbaBskanow), 
 		liczbaPrzekrojowPoprzecznych(params.liczbaPrzekrojowPoprzecznych), 
 		liczbaPrzekrojowPoziomych(params.liczbaPrzekrojowPoziomych),
@@ -71,10 +75,18 @@ public:
 		
 
 	}
+
+//	static CudaTekstury& getInstance(visualizationParams params) {
+
+//		static CudaTekstury instance(params);
+//		return instance;
+//	}
+	CudaTekstury(const CudaTekstury&) = delete;
+	void operator=(const CudaTekstury&) = delete;
 	void init();
 	cudaArray_t* cudaArray() { return tabliceCuda; }
 	void pobierzDaneCPU();
-	inline size liczbaPrzekrojow() const { return liczbaBskanow + liczbaPrzekrojowPoprzecznych +liczbaPrzekrojowPoziomych; }
+	inline size liczbaPrzekrojow() const { return liczbaPrzekrojowPoziomych+ liczbaPrzekrojowPoprzecznych+ liczbaBskanow;}
 	inline size_t calkowityRozmiarDanych() const { return rozmiarAskanu*szerokoscBskanu*glebokoscPomiaru; }
 	void wczytajDane(const char *nazwaPliku);
 	void wczytajBMP(char* plik);

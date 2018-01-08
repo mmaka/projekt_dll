@@ -5,9 +5,9 @@
 
 visualizationParams params;
 OknoGL *okno;
-CudaTekstury *cTekstury;
+CudaTekstury *cudaTekstury;
 std::thread *t;
-
+//CudaTekstury *cudaTekstury = nullptr;
 int StworzOkno();
 
 LRESULT CALLBACK  WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -38,9 +38,9 @@ OCTVIEWER_API void setParams(visualizationType type, size ileBskanow,size ilePrz
 
 OCTVIEWER_API void init()
 {
-//	MessageBox(NULL, "init", "", MB_OK);
-	cTekstury = new CudaTekstury(params);
-
+	MessageBox(NULL, "init", "", MB_OK);
+	cudaTekstury = new CudaTekstury(params);
+	//cudaTekstury.getInstance(params);
 }
 
 OCTVIEWER_API void loadData(const char* plik)
@@ -48,16 +48,16 @@ OCTVIEWER_API void loadData(const char* plik)
 	//tutaj musi byæ przygotowany bufor, tak by u¿ytkownik móg³ za³adowaæ dane w dowolnym momencie, ale przekazanie ich do GPU nast¹pi³o wtedy gdy stworzenie okna przebieg³o pomyœlnie
 	
 
-//	MessageBox(NULL, "load1", "", MB_OK);
-//	cTekstury->wczytajBMP("lab512x256.bmp");
-//	cTekstury->wczytajDane(plik);
-	cTekstury->wczytajDaneBinarne("kostka.bin");
+	MessageBox(NULL, "load1", "", MB_OK);
+//	cudaTekstury->wczytajBMP("lab512x256.bmp");
+//	cudaTekstury->wczytajDane(plik);
+//	cudaTekstury->wczytajDaneBinarne("kostka.bin");
 //	cTekstury->wprowadzTestoweDane();
-//	MessageBox(NULL, "load2", "", MB_OK);
-	cTekstury->pobierzDaneCPU();
-//	MessageBox(NULL, "load3", "", MB_OK);
-	cTekstury->tworzPrzekroje();
-//	MessageBox(NULL, "load4", "", MB_OK);
+	MessageBox(NULL, "load2", "", MB_OK);
+//	cudaTekstury->pobierzDaneCPU();
+	MessageBox(NULL, "load3", "", MB_OK);
+//	cudaTekstury->tworzPrzekroje();
+	MessageBox(NULL, "load4", "", MB_OK);
 }
 
 OCTVIEWER_API void updateData()
@@ -76,16 +76,17 @@ OCTVIEWER_API void display()
 
 OCTVIEWER_API void clear() {
 
-	delete t;
-	delete okno;
-	delete cTekstury;
+	//delete t;
+	//delete okno;
+//	if(cudaTekstury!=nullptr)
+//		delete cudaTekstury;
 
 }
 
 int StworzOkno() {
 
 	
-	okno = new OknoGL(params,cTekstury);
+	okno = new OknoGL(params,cudaTekstury);
 	POINT polozenieOkna = { 100,100 };
 	POINT rozmiarOkna = { 800,600 };
 	if (!okno->Inicjuj(hInstance, polozenieOkna, rozmiarOkna)) {

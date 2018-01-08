@@ -19,6 +19,7 @@ public:
 	LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 	bool Inicjuj(HINSTANCE uchwytAplikacji, POINT polozenieOkna, POINT rozmiarOkna, bool trybPelnoekranowy = false, bool zmianaRzdzielczosci = true);
 	WPARAM Uruchom();
+	virtual ~Okno() {};
 private:
 	bool ZmianaRozdzieloczosci(long szerokosc, long wysokosc, long glebiaKolorow = 32) const;
 };
@@ -83,7 +84,7 @@ public:
 	visualizationParams parametryWyswietlania;
 	
 public:
-	OknoGL(visualizationParams& params,CudaTekstury *cTekstury)
+	OknoGL(visualizationParams& params,CudaTekstury* cTekstury)
 		: Okno(),
 		uchwytRC(NULL), uchwytDC(NULL),
 		macierzSwiata(Macierz4::Jednostkowa), macierzWidoku(Macierz4::Jednostkowa), macierzRzutowania(Macierz4::Jednostkowa),
