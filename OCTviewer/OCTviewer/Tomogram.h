@@ -2,7 +2,7 @@
 #include"glew.h"
 #include"OCTviewer.h"
 
-enum TYP_PRZEKROJU
+enum class TYP_PRZEKROJU
 {
 	BSKAN, PRZEKROJ_POPRZECZNY, PRZEKROJ_POZIOMY
 };
@@ -37,15 +37,15 @@ public:
 
 		switch (typ) {
 
-		case BSKAN:
+		case TYP_PRZEKROJU::BSKAN:
 			szerokoscTekstury = b_skan_rozmiar_x;
 			wysokoscTekstury = b_skan_rozmiar_y;
 			break;
-		case PRZEKROJ_POPRZECZNY:
+		case TYP_PRZEKROJU::PRZEKROJ_POPRZECZNY:
 			szerokoscTekstury = b_skan_rozmiar_x;
 			wysokoscTekstury = glebokoscPomiaru;
 			break;
-		case PRZEKROJ_POZIOMY:
+		case TYP_PRZEKROJU::PRZEKROJ_POZIOMY:
 			szerokoscTekstury = glebokoscPomiaru;
 			wysokoscTekstury = b_skan_rozmiar_y;
 			break;
@@ -59,7 +59,6 @@ public:
 		//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 			glTexImage2D(GL_TEXTURE_2D, 0,GL_RGBA, szerokoscTekstury, wysokoscTekstury, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-			//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, szerokoscTekstury, wysokoscTekstury, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 		}
 
 		glBindTexture(GL_TEXTURE_2D, 0);
@@ -70,9 +69,9 @@ public:
 		//przemyœleæ czy chcemy mieæ mo¿liwoœæ tworzenia samych bskanów
 		GLuint* indeksy = new GLuint[liczbaTekstur()];
 		glGenTextures(liczbaTekstur(), indeksy);
-		parametryTekstur(indeksy, liczba_B_skanow, BSKAN);
-		parametryTekstur(indeksy + liczba_B_skanow, liczba_Przekrojow_Poprzecznych, PRZEKROJ_POPRZECZNY);
-		parametryTekstur(indeksy + liczba_B_skanow + liczba_Przekrojow_Poprzecznych, liczba_Przekrojow_Poziomych, PRZEKROJ_POZIOMY);
+		parametryTekstur(indeksy, liczba_B_skanow, TYP_PRZEKROJU::BSKAN);
+		parametryTekstur(indeksy + liczba_B_skanow, liczba_Przekrojow_Poprzecznych, TYP_PRZEKROJU::PRZEKROJ_POPRZECZNY);
+		parametryTekstur(indeksy + liczba_B_skanow + liczba_Przekrojow_Poprzecznych, liczba_Przekrojow_Poziomych, TYP_PRZEKROJU::PRZEKROJ_POZIOMY);
 		return indeksy;
 	}
 

@@ -8,6 +8,7 @@ BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD  ul_reason_for_call, LPVOID lpRe
 	{
 	case DLL_PROCESS_ATTACH:
 		hInstance = hinstDLL;
+		
 		break;
 	case DLL_THREAD_ATTACH:
 	case DLL_THREAD_DETACH:

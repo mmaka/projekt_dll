@@ -5,7 +5,20 @@ VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OCTviewer", "OCTviewer\OCTviewer.vcxproj", "{23D0046C-239D-436C-AE3E-2E5C2B01AD09}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "testownia", "..\..\testownia\testownia\testownia\testownia.vcxproj", "{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{23D0046C-239D-436C-AE3E-2E5C2B01AD09} = {23D0046C-239D-436C-AE3E-2E5C2B01AD09}
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{CF52470C-CD7D-41E1-996E-F01BFD820BAE}"
+	ProjectSection(SolutionItems) = preProject
+		Performance1.psess = Performance1.psess
+	EndProjectSection
+EndProject
 Global
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
@@ -21,6 +34,14 @@ Global
 		{23D0046C-239D-436C-AE3E-2E5C2B01AD09}.Release|x64.Build.0 = Release|x64
 		{23D0046C-239D-436C-AE3E-2E5C2B01AD09}.Release|x86.ActiveCfg = Release|Win32
 		{23D0046C-239D-436C-AE3E-2E5C2B01AD09}.Release|x86.Build.0 = Release|Win32
+		{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}.Debug|x64.ActiveCfg = Debug|x64
+		{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}.Debug|x64.Build.0 = Debug|x64
+		{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}.Debug|x86.ActiveCfg = Debug|Win32
+		{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}.Debug|x86.Build.0 = Debug|Win32
+		{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}.Release|x64.ActiveCfg = Release|x64
+		{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}.Release|x64.Build.0 = Release|x64
+		{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}.Release|x86.ActiveCfg = Release|Win32
+		{A23E0EB8-6C38-4769-A9C4-E057EE9A138A}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

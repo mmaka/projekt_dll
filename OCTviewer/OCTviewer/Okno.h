@@ -6,6 +6,7 @@
 #include<sstream>
 #include"OCTviewer.h"
 #include"CudaTekstury.cuh"
+#include<memory>
 
 class Okno {
 
@@ -73,25 +74,104 @@ protected:
 	bool kolor;
 	void UsunTekstury();
 	TomogramTekstury *tekstury;
-	CudaTekstury *cudaTekstury;
+	std::unique_ptr<CudaTekstury> cudaTekstury;
 	LARGE_INTEGER countPerSec, tim1, tim2;
 public:
 
 	bool zmianaKoloru;
 	bool flaga;
-	std::stringstream vs;
-	std::stringstream fs;
 	visualizationParams parametryWyswietlania;
 	
 public:
-	OknoGL(visualizationParams& params,CudaTekstury* cTekstury)
+	OknoGL(visualizationParams& params, std::unique_ptr<CudaTekstury>& cTekstury)
 		: Okno(),
 		uchwytRC(NULL), uchwytDC(NULL),
 		macierzSwiata(Macierz4::Jednostkowa), macierzWidoku(Macierz4::Jednostkowa), macierzRzutowania(Macierz4::Jednostkowa),
 		MVP(Macierz4::Jednostkowa), VP(Macierz4::Jednostkowa),
-		swobodneObrotyKameryAktywne(false), teksturowanieWlaczone(true), kolor(true), zmianaKoloru(false), flaga(true), parametryWyswietlania(params),cudaTekstury(cTekstury) {};
+		swobodneObrotyKameryAktywne(false), teksturowanieWlaczone(true), kolor(true), zmianaKoloru(false), flaga(true), parametryWyswietlania(params),cudaTekstury(std::move(cTekstury)) {}
 	LRESULT __stdcall WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-	~OknoGL() {
-		cudaTekstury->~CudaTekstury();
+};
+
+
+extern class Wizualizator {
+
+	visualizationParams params;
+	std::thread wyswietlacz;
+	std::unique_ptr<CudaTekstury> cudaTekstury;
+	char *dane;
+	std::unique_ptr<OknoGL> okno;
+
+public:
+	std::unique_ptr<OknoGL>& getOkno() { return okno; }
+	void initCuda() {
+
+
+		//cudaTeksturyZ = new CudaTekstury(paramsZ);
+		cudaTekstury = std::make_unique<CudaTekstury>(params,dane);
+		//cudaTeksturyZ->init();
+	}
+	int StworzOkno() {
+
+		okno = std::make_unique<OknoGL>(params, cudaTekstury);
+		POINT polozenieOkna = { 100,100 };
+		POINT rozmiarOkna = { 800,600 };
+		if (!okno->Inicjuj(hInstance, polozenieOkna, rozmiarOkna)) {
+
+			MessageBox(NULL, "Inicjacja okna nie powiodla sie", "Aplikacja OpenGL", MB_OK | MB_ICONERROR);
+			return EXIT_FAILURE;
+		}
+		else return okno->Uruchom();
+	}
+	
+	void wyswietlOkno() {
+
+		wyswietlacz = std::thread([&] {StworzOkno(); });
+		wyswietlacz.detach();
+	}
+
+
+	void setParams(WIZUALIZACJA type, size ileBskanow, size ilePrzekrojowPoprzecznych, size ilePrzekrojowPoziomych, float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize, size ascanSize, size depth, float x_size_mm, float y_size_mm, float z_size_mm, int jasn, int kontr,char *plik)
+	{
+		params.typ = type;
+		params.liczbaBskanow = ileBskanow;
+		params.liczbaPrzekrojowPoprzecznych = ilePrzekrojowPoprzecznych;
+		params.liczbaPrzekrojowPoziomych = ilePrzekrojowPoziomych;
+		params.xSizeScale = xSizeScale;
+		params.ySizeScale = ySizeScale;
+		params.zSizeScale = zSizeScale;
+		params.bscanSize_px = bscanSize;
+		params.ascanSize_px = ascanSize;
+		params.depth_px = depth;
+		params.x_mm = x_size_mm;
+		params.y_mm = y_size_mm;
+		params.z_mm = z_size_mm;
+		params.jasnosc = jasn;
+		params.kontrast = kontr;
+		wczytajDaneBinarne(plik);
+	}
+	void wczytajDaneBinarne(char *nazwaPliku) {
+
+		std::ifstream plik(nazwaPliku, std::ios::in | std::ios::binary);
+
+		if (plik.is_open()) {
+
+			std::stringstream s;
+			int tmp;
+			plik.read((char*)&tmp, sizeof(tmp));
+			plik.read((char*)&tmp, sizeof(tmp));
+			plik.read((char*)&tmp, sizeof(tmp));
+			dane = new oct_t[params.bscanSize_px*params.ascanSize_px*params.depth_px];
+			plik.read((char*)dane, params.bscanSize_px*params.ascanSize_px*params.depth_px * sizeof(oct_t));
+
+		}
+		else {
+
+			MessageBox(NULL, "Blad otwarcia pliku!", "", NULL);
+
+		}
+
+		plik.close();
 	}
 };
+
+

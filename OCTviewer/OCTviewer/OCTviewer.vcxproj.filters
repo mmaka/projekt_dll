@@ -54,6 +54,9 @@
     <ClInclude Include="PlikBMP.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Shadery.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="OCTviewer.cpp">

@@ -1,8 +1,13 @@
 ﻿  Okno.cpp
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(72): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(73): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(74): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(140): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
-c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\okno.cpp(193): warning C4244: 'initializing': conversion from 'LRESULT' to 'long', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(82): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(83): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(84): warning C4244: '=': conversion from 'float' to 'size', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\cudatekstury.cuh(182): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\okno.h(175): warning C4091: 'extern ': ignored on left of 'Wizualizator' when no variable is declared
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\okno.h(123): warning C4244: 'return': conversion from 'WPARAM' to 'int', possible loss of data
+c:\users\maka\documents\visual studio 2015\projects\octviewer\octviewer\octviewer\okno.cpp(195): warning C4244: 'initializing': conversion from 'LRESULT' to 'long', possible loss of data
+LINK : warning LNK4075: ignoring '/INCREMENTAL' due to '/PROFILE' specification
+CrossSection.obj : warning LNK4075: ignoring '/EDITANDCONTINUE' due to '/OPT:LBR' specification
+     Creating library C:\Users\maka\Documents\Visual Studio 2015\Projects\OCTviewer\OCTviewer\x64\Debug\OCTviewer.lib and object C:\Users\maka\Documents\Visual Studio 2015\Projects\OCTviewer\OCTviewer\x64\Debug\OCTviewer.exp
   OCTviewer.vcxproj -> C:\Users\maka\Documents\Visual Studio 2015\Projects\OCTviewer\OCTviewer\x64\Debug\OCTviewer.dll
   OCTviewer.vcxproj -> C:\Users\maka\Documents\Visual Studio 2015\Projects\OCTviewer\OCTviewer\x64\Debug\OCTviewer.pdb (Full PDB)

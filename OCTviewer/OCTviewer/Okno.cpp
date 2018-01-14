@@ -1,3 +1,4 @@
+#pragma once
 #include"Okno.h"
 #include "glew.h"
 #include "wglew.h"
@@ -6,6 +7,7 @@
 #include "Wektor.h"
 #include<sstream>
 #include"Macierz.h"
+#include"Shadery.h"
 
 
 LRESULT CALLBACK __stdcall WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -211,80 +213,23 @@ LRESULT __stdcall OknoGL::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 			return EXIT_FAILURE;
 		}
 
-		vs << "#version 330 core\n" <<
-			"layout(location = 0) in vec3 polozenie_in; \n" <<
-			"layout(location = 2) in vec2 wspTekstur_in; \n" <<
-			"layout(location = 3) in vec4 kolor_in; \n" <<
-			"uniform bool UwzglednijKolorWerteksu = true; \n" <<
-			"uniform vec4 Kolor = vec4(1.0, 1.0, 0.0, 1.0); \n" <<
-			"uniform float przezroczystosc = 1.0f; \n" <<
-			"const mat4 macierzJednostkowa = mat4(1.0); \n" <<
-			"uniform mat4 mvp = macierzJednostkowa; \n" <<
-			"out vec4 polozenie; \n" <<
-			"out vec4 kolor; \n" <<
-			"out vec2 wspTekstur; \n" <<
-			"out vec3 polozenie_scena; \n" <<
-			"void main(void) {\n" <<
-			"polozenie = vec4(polozenie_in, 1.0); \n" <<
-			"gl_Position = mvp*polozenie; \n" <<
-			"kolor = vec4(kolor_in.r, kolor_in.g, kolor_in.b, przezroczystosc); \n" <<
-			"wspTekstur = wspTekstur_in;}\n";
-
-		fs << "#version 330 core\n" <<
-			"out vec4 kolor_out;\n" <<
-			"in vec4 kolor;\n" <<
-			"in vec2 wspTekstur;\n" <<
-			"uniform bool Teksturowanie = true;\n" <<
-			"uniform bool flaga = true;\n" <<
-			"uniform sampler2D ProbnikTekstury;\n" <<
-			"void main(void) {\n" <<
-			"vec4 teksel = vec4(1.0f, 1.0f, 1.0f,1.0f);\n" <<
-			"if (Teksturowanie) {\n" <<
-			"teksel = texture2D(ProbnikTekstury, wspTekstur);\n" <<
-			"teksel.a = kolor.a;\n" <<
-			"kolor_out = teksel;\n" <<
-			"//kolor_out.r = teksel.r\n;" <<
-			"//kolor_out.g = teksel.g;\n" <<
-			"//kolor_out.b = teksel.b;\n" <<
-			"//kolor_out.a = kolor.a;}\n" <<
-			"}else kolor_out = kolor; \n" <<
-			"kolor_out = vec4(1.0f - kolor_out.r, 1.0f - kolor_out.g, 1.0f - kolor_out.b, kolor_out.a);\n"<<
-			"}";
-
-		idProgramuShaderow = PrzygotujShadery(vs.str().c_str(), fs.str().c_str(), false);
+		idProgramuShaderow = PrzygotujShadery(vertexShader, fragmentShader, false);
 
 		if (idProgramuShaderow == NULL) {
 
 			MessageBox(NULL, "Przygotowanie shaderow nie powiodlo sie", "OCTviewer", MB_OK | MB_ICONERROR);
 			exit(EXIT_FAILURE);
 		}
-		MessageBox(NULL, "test1", " ", MB_OK);
+
 		UmiescInformacjeNaPaskuTytulu(hWnd);
 		tekstury = new TomogramTekstury(parametryWyswietlania);
 		tekstury->init();
-		MessageBox(NULL, "test2", " ", MB_OK);
 		liczbaPrzekrojow = przygotujPrzekroje();
-		MessageBox(NULL, "test3", " ", MB_OK);
 		cudaTekstury->init();
-		
-		MessageBox(NULL, "test4", " ", MB_OK);
 		ustanowienieWspolpracyCudaOpenGL(tekstury->indeksyTekstur(), cudaTekstury->cudaArray(), parametryWyswietlania.liczbaBskanow+ parametryWyswietlania.liczbaPrzekrojowPoprzecznych  + parametryWyswietlania.liczbaPrzekrojowPoziomych);
-		MessageBox(NULL, "test5", " ", MB_OK);
 		cudaTekstury->przygotowanieTekstur();
-		
-
-		cudaTekstury->wczytajBMP("lab512x256.bmp");
-		//cudaTekstury->wczytajDaneBinarne("kostka.bin");
-		//	cTekstury->wprowadzTestoweDane();
-		//MessageBox(NULL, "load2", "", MB_OK);
 		cudaTekstury->pobierzDaneCPU();
-		//MessageBox(NULL, "load3", "", MB_OK);
 		cudaTekstury->tworzPrzekroje();
-
-
-
-
-
 
 		UstawienieSceny();
 		if (swobodneObrotyKameryMozliwe) {
@@ -341,6 +286,8 @@ LRESULT __stdcall OknoGL::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 		break;
 	case WM_DESTROY:
 	//	UsunTekstury();
+		cudaTekstury->sprzatanie();
+		delete tekstury;
 		UsunAktorow();
 		UsunWGL();
 		KillTimer(uchwytOkna, identyfikatorTimeraSwobodnychObrotowKamery);
@@ -379,12 +326,12 @@ void OknoGL::UstawienieSceny(bool rzutowanieIzometryczne) {
 	glViewport(0, 0, szerokoscObszaruUzytkownika, wysokoscObszaruUzytkownika);
 	glEnable(GL_TEXTURE_2D);
 
-	switch (parametryWyswietlania.type) {
+	switch (parametryWyswietlania.typ) {
 
-	case TYPE_2D:
+	case WIZUALIZACJA::TYP_2D:
 
 		break;
-	case TYPE_3D:
+	case WIZUALIZACJA::TYP_3D:
 		glEnable(GL_BLEND);
 		glDisable(GL_DEPTH_TEST);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -463,6 +410,7 @@ unsigned int OknoGL::PrzygotujShadery(const char* vs, const char* fs, bool trybD
 
 	}
 	else if (trybDebugowania) PokazKomunikat("Kompilacja shadera werteksow zakonczyla sie sukcesem", MB_ICONINFORMATION);
+
 
 	//Kompilacja shadera fragmentow
 	GLuint idShaderaFragmentow = KompilujShader(fs, GL_FRAGMENT_SHADER, trybDebugowania);
@@ -554,7 +502,7 @@ unsigned int OknoGL::KompilujShader(const char* shader, GLenum typ, bool trybDeb
 		const int maxInfoLogSize = 2048;
 		GLchar infoLog[maxInfoLogSize];
 		glGetShaderInfoLog(idShadera, maxInfoLogSize, NULL, infoLog);
-		char komunikat[maxInfoLogSize + 64] = "Uwage! Kompilacja shadera nie powodla sie:\n";
+		char komunikat[maxInfoLogSize + 64] = "Uwaga! Kompilacja shadera nie powodla sie:\n";
 		strcat_s(komunikat, (char*)infoLog);
 		PokazKomunikat(komunikat, MB_ICONERROR);
 		return NULL;
@@ -802,15 +750,15 @@ unsigned int OknoGL::przygotujPrzekroje() {
 	if (atrybutKolor == (GLuint)-1) atrybutKolor = 3;
 	unsigned int liczbaPrzekrojow = 0;
 	GLuint *indeksyTekstur = tekstury->indeksyTekstur();
-	switch (parametryWyswietlania.type) {
+	switch (parametryWyswietlania.typ) {
 
-	case TYPE_2D:
+	case WIZUALIZACJA::TYP_2D:
 		liczbaPrzekrojow = 1;
 		przekroje = new CrossSection*[liczbaPrzekrojow];
 		przekroje[0] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, parametryWyswietlania.x_mm*parametryWyswietlania.xSizeScale, parametryWyswietlania.y_mm*parametryWyswietlania.ySizeScale);
 		przekroje[0]->IndeksTekstury = indeksyTekstur[0];
 		break;
-	case TYPE_3D:
+	case WIZUALIZACJA::TYP_3D:
 		liczbaPrzekrojow = parametryWyswietlania.liczbaBskanow+ parametryWyswietlania.liczbaPrzekrojowPoprzecznych  + parametryWyswietlania.liczbaPrzekrojowPoziomych;
 		przekroje = new CrossSection*[liczbaPrzekrojow];
 
