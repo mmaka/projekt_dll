@@ -1,4 +1,5 @@
 #pragma once
+//#define CUDA_API_PER_THREAD_DEFAULT_STREAM
 #include<cuda_runtime.h>
 #include "device_launch_parameters.h"
 #include "glew.h"
@@ -28,9 +29,11 @@ static void HandlerError(cudaError_t err, const char *file, int line) {
 //using oct_t = unsigned long;
 using oct_t = char;
 
+enum class EDYCJA_MAPY_KOLOROW {ZMNIEJSZ_KONTRAST,ZWIEKSZ_KONTRAST,ZMNIEJSZ_JASNOSC,ZWIEKSZ_JASNOSC};
+
 class CudaTekstury {
 
-//	cudaArray_t *tabliceCuda;
+//	cudaArray_t *tabliceCuda2;
 //	cudaSurfaceObject_t *bskany;
 //	cudaSurfaceObject_t *przekrojePoprzeczne;
 //	cudaSurfaceObject_t *przekrojePoziome;
@@ -42,10 +45,14 @@ class CudaTekstury {
 	std::vector<cudaSurfaceObject_t> przekrojePoziome;
 //	std::vector<cudaStream_t> streams;
 
-
+	
 //	unsigned int *daneGPU;
 	oct_t *daneGPU;
-	
+	uchar4 *daneGPU_tab;
+	uchar4 *daneGPU_ppop;
+	uchar4 *daneGPU_ppoz;
+
+
 	size liczbaBskanow;
 	size liczbaPrzekrojowPoprzecznych;
 	size liczbaPrzekrojowPoziomych;
@@ -64,9 +71,12 @@ class CudaTekstury {
 	int jasnosc, kontrast;
 	unsigned char mapaSzarosci[256], defKol[256][3];
 	uchar3 mapaKolorow[256];
+	uchar4 mapaKolorySzarosc[256];
 	unsigned char *d_mapaSzarosci;
 	uchar3 *d_mapaKolorow;
+	uchar4 *d_mapaKolory_Szarosc;
 	bool inicjalizacja = false;
+	bool zmianaKoloru;
 
 public:
 	 explicit CudaTekstury(visualizationParams params,char* dane): 
@@ -77,7 +87,7 @@ public:
 		kontrast(params.kontrast), 
 		rozmiarAskanu(params.ascanSize_px),
 		szerokoscBskanu(params.bscanSize_px),
-		glebokoscPomiaru(params.depth_px),daneCPU(dane){
+		glebokoscPomiaru(params.depth_px),daneCPU(dane),zmianaKoloru(true){
 
 		krok_bskan = (float)glebokoscPomiaru / (liczbaBskanow-1);
 		krok_przekrojePoprzeczne = (float)rozmiarAskanu / (liczbaPrzekrojowPoprzecznych-1);
@@ -89,26 +99,43 @@ public:
 	CudaTekstury(const CudaTekstury&) = delete;
 	void operator=(const CudaTekstury&) = delete;
 	void init();
-	//cudaArray_t* cudaArray() { return tabliceCuda; }
+//	cudaArray_t* cudaArray() { return tabliceCuda2; }
 	std::vector<cudaArray_t>& cudaArray() { return tabliceCuda; }
 	void pobierzDaneCPU();
-	inline size liczbaPrzekrojow() const { return liczbaPrzekrojowPoziomych+ liczbaPrzekrojowPoprzecznych+ liczbaBskanow;} //constexpr
+	inline size liczbaPrzekrojow() const { return liczbaBskanow; }// +liczbaPrzekrojowPoziomych + liczbaPrzekrojowPoprzecznych;} //constexpr
 	inline size_t calkowityRozmiarDanych() const { return rozmiarAskanu*szerokoscBskanu*glebokoscPomiaru; }//constexpr
 	void wczytajDane(const char *nazwaPliku);
 	void wczytajBMP(char* plik);
 	void wczytajDaneBinarne(char *nazwaPliku);
 	void tworzPrzekroje();
 	void launch_bskany(size_t i);
+	void launch_bskany2();
 	void launch_przekrojePoprzeczne(size_t i);
 	void launch_przekrojePoziome(size_t i);
+	void launch_przekrojePoprzeczne2();
+	void launch_przekrojePoziome2();
 	void tworzenie_tekstur(cudaArray_t *tab, cudaSurfaceObject_t *surf);
 	void przygotowanieTekstur();
 	void wprowadzTestoweDane();
 	void pobierzDefinicjeKolorow();
 	void ustawMapeKolorow();
-	void zwiekszKontrast();
+	void edycjaMapyKolorow(EDYCJA_MAPY_KOLOROW tryb, int value);
 	void odswiezTekstury();
+	void odswiezTekstury2();
+	void odswiez_bskany();
+	void odswiez_przekrojePoprzeczne();
+	void odswiez_przekrojePoziome();
+	void pobierzDaneCPU2();
 	void sprzatanie();
+	void tworzDane();
+	void launch_przygotowanie_bskanow(size_t i);
+	void przepisanie();
+
+	void ustawMapeKolorow2();
+	void kolorowanieB();
+	void kopiowanieB();
+	void launch_bskany_bezkoloru(size_t i);
+	void kopiowanieP();
 
 	~CudaTekstury() {
 
@@ -160,11 +187,11 @@ static void ustanowienieWspolpracyCudaOpenGL(GLuint* indeksy, cudaArray_t* tabli
 }
 */
 
-static void ustanowienieWspolpracyCudaOpenGL(GLuint* indeksy, std::vector<cudaArray_t>& tablice_cuda, size_t ileTekstur) {
+static void ustanowienieWspolpracyCudaOpenGL(GLuint* indeksy, std::vector<cudaArray_t>& tablice_cuda, int ileTekstur) {
 
 	cudaGraphicsResource_t* resources = new cudaGraphicsResource_t[ileTekstur];
 	cudaStream_t strumien;
-	cudaStreamCreateWithFlags(&strumien, cudaStreamDefault);
+	cudaStreamCreate(&strumien);
 	GLenum target = GL_TEXTURE_2D;
 	//unsigned int  flags = cudaGraphicsRegisterFlagsNone;
 	unsigned int flags = cudaGraphicsRegisterFlagsSurfaceLoadStore;
@@ -182,7 +209,5 @@ static void ustanowienieWspolpracyCudaOpenGL(GLuint* indeksy, std::vector<cudaAr
 	HANDLE_ERROR(cudaGraphicsUnmapResources(ileTekstur, resources, strumien));
 
 	delete[] resources;
+	HANDLE_ERROR(cudaStreamDestroy(strumien));
 }
-
-
-extern CudaTekstury cT;
