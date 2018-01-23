@@ -9,6 +9,7 @@
 #include"Macierz.h"
 #include"Shadery.h"
 #include<future>
+#include<chrono>
 
 
 LRESULT CALLBACK __stdcall WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -205,7 +206,10 @@ LRESULT __stdcall OknoGL::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 	const int identyfikatorTimeraRysowania = 2;
 	const int okresTimeraRysowania = 10;
 	std::future<void> f;
-
+	
+	LARGE_INTEGER countPerSecc, tim11, tim22;
+	QueryPerformanceFrequency(&countPerSecc);
+	double jj;
 	switch (message) {
 
 	case WM_CREATE:
@@ -224,36 +228,37 @@ LRESULT __stdcall OknoGL::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 		}
 
 		UmiescInformacjeNaPaskuTytulu(hWnd);
-//		MessageBox(NULL, "test1", "", MB_OK);
+
 		tekstury = new TomogramTekstury(parametryWyswietlania);
-//		MessageBox(NULL, "test2", "", MB_OK);
 		tekstury->init();
-//		MessageBox(NULL, "test3", "", MB_OK);
+
+		QueryPerformanceCounter(&tim11);
 		liczbaPrzekrojow = przygotujPrzekroje();
-//		MessageBox(NULL, "test4", "", MB_OK);
+		QueryPerformanceCounter(&tim22);
+		jj = (double)(tim22.QuadPart - tim11.QuadPart) / countPerSecc.QuadPart * 1000;
+		printf("czas przygotowania przekrojow: %f\n", jj);
+
+		QueryPerformanceCounter(&tim11);
 		cudaTekstury->init();
-//		MessageBox(NULL, "test5", "", MB_OK);
-		ustanowienieWspolpracyCudaOpenGL(tekstury->indeksyTekstur(), cudaTekstury->cudaArray(), (int)(parametryWyswietlania.liczbaBskanow +parametryWyswietlania.liczbaPrzekrojowPoprzecznych + parametryWyswietlania.liczbaPrzekrojowPoziomych));
-//		MessageBox(NULL, "test6", "", MB_OK);
-		cudaTekstury->pobierzDaneCPU();
-		//cudaTekstury->pobierzDaneCPU2();
-//		MessageBox(NULL, "test7", "", MB_OK);
-	//	cudaTekstury->tworzDane();
-		cudaTekstury->kolorowanieB();
-//		MessageBox(NULL, "test7.5", "", MB_OK);
-	//	cudaTekstury->kopiowanieB();
-//		MessageBox(NULL, "test8", "", MB_OK);
-//		cudaTekstury->przygotowanieTekstur();
-//		MessageBox(NULL, "test8.5", "", MB_OK);
-	//	f = std::async(std::launch::async, [&] {cudaTekstury->kolorowanieB(); });
-//		MessageBox(NULL, "test9", "", MB_OK);
-		cudaTekstury->przepisanie();
-//		MessageBox(NULL, "test9.5", "", MB_OK);
-		cudaTekstury->kopiowanieB();
-//		MessageBox(NULL, "test9.8", "", MB_OK);
-//		cudaTekstury->kopiowanieP();
-//		cudaTekstury->tworzPrzekroje();
-//		MessageBox(NULL, "test10", "", MB_OK);
+		QueryPerformanceCounter(&tim22);
+		jj = (double)(tim22.QuadPart - tim11.QuadPart) / countPerSecc.QuadPart * 1000;
+		printf("czas init: %f\n", jj);
+
+		QueryPerformanceCounter(&tim11);
+		f = std::async(std::launch::async, [&] {cudaTekstury->pobierzDaneCPU(); });
+		ustanowienieWspolpracyCudaOpenGL(tekstury->indeksyTekstur(), cudaTekstury->cudaArray(), (int)(parametryWyswietlania.liczbaPrzekrojowPoziomych +parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych));
+		//cudaTekstury->pobierzDaneCPU();
+		f.get();
+		QueryPerformanceCounter(&tim22);
+		jj = (double)(tim22.QuadPart - tim11.QuadPart) / countPerSecc.QuadPart * 1000;
+		printf("czas pobrania danych i interop: %f\n", jj);
+
+		QueryPerformanceCounter(&tim11);
+		cudaTekstury->kolorowanie_oct_t();
+		QueryPerformanceCounter(&tim22);
+		jj = (double)(tim22.QuadPart - tim11.QuadPart) / countPerSecc.QuadPart * 1000;
+		printf("czas kolorowania: %f\n", jj);
+
 		UstawienieSceny();
 		if (swobodneObrotyKameryMozliwe) {
 
@@ -277,10 +282,6 @@ LRESULT __stdcall OknoGL::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 		ValidateRect(hWnd, NULL);
 		break;
 	case WM_KEYDOWN:
-		
-		//f = std::async(std::launch::async, [&] {cudaTekstury->zwiekszKontrast(10); });
-			
-		
 		ObslugaKlawiszy(wParam);
 		break;
 	case WM_MOUSEMOVE:
@@ -356,15 +357,14 @@ void OknoGL::UstawienieSceny(bool rzutowanieIzometryczne) {
 
 	switch (parametryWyswietlania.typ) {
 
-	case WIZUALIZACJA::TYP_2D:
-
-		break;
 	case WIZUALIZACJA::TYP_3D:
 		glEnable(GL_BLEND);
 		glDisable(GL_DEPTH_TEST);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 		break;
+	case WIZUALIZACJA::TYP_2D:
 
+		break;
 	}
 
 	//Parametry shadera 
@@ -642,7 +642,7 @@ void OknoGL::ObslugaKlawiszy(WPARAM wParam) {
 		ModyfikujPolozenieKamery(m);
 		RysujScene();
 
-	}
+	} 
 	
 
 }
@@ -807,11 +807,11 @@ unsigned int OknoGL::przygotujPrzekroje() {
 		liczbaPrzekrojow = 1;
 		przekroje = new CrossSection*[liczbaPrzekrojow];
 		przekroje[0] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, parametryWyswietlania.x_mm*parametryWyswietlania.xSizeScale, parametryWyswietlania.y_mm*parametryWyswietlania.ySizeScale);
-		przekroje[0]->IndeksTekstury = indeksyTekstur[parametryWyswietlania.liczbaBskanow+parametryWyswietlania.liczbaPrzekrojowPoprzecznych+(parametryWyswietlania.liczbaPrzekrojowPoziomych)/2];
+		przekroje[0]->IndeksTekstury = indeksyTekstur[8];// indeksyTekstur[parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych + (parametryWyswietlania.liczbaPrzekrojowPoziomych) / 2];
 		
 		break;
 	case WIZUALIZACJA::TYP_3D:
-		liczbaPrzekrojow = parametryWyswietlania.liczbaBskanow +parametryWyswietlania.liczbaPrzekrojowPoprzecznych + parametryWyswietlania.liczbaPrzekrojowPoziomych;
+		liczbaPrzekrojow = parametryWyswietlania.liczbaPrzekrojowPoziomych+ parametryWyswietlania.liczbaBskanow + parametryWyswietlania.liczbaPrzekrojowPoprzecznych;
 		przekroje = new CrossSection*[liczbaPrzekrojow];
 
 		float rozmiarX = parametryWyswietlania.x_mm*parametryWyswietlania.xSizeScale;
@@ -860,68 +860,6 @@ unsigned int OknoGL::przygotujPrzekroje() {
 	return liczbaPrzekrojow;
 }
 
-/*
-unsigned int OknoGL::przygotujPrzekroje() {
-
-	GLuint atrybutPolozenie = glGetAttribLocation(idProgramuShaderow, "polozenie_in");
-	if (atrybutPolozenie == (GLuint)-1) atrybutPolozenie = 0;
-
-	GLuint atrybutWspolrzedneTeksturowania = glGetAttribLocation(idProgramuShaderow, "wspTekstur_in");
-	if (atrybutWspolrzedneTeksturowania == (GLuint)-1) atrybutWspolrzedneTeksturowania = 2;
-
-	GLuint atrybutKolor = glGetAttribLocation(idProgramuShaderow, "kolor_in");
-	if (atrybutKolor == (GLuint)-1) atrybutKolor = 3;
-	unsigned int liczbaPrzekrojow = 0;
-	GLuint *indeksyTekstur = tekstury->indeksyTekstur();
-	switch (parametryWyswietlania.type) {
-
-	case TYPE_2D:
-		liczbaPrzekrojow = 1;
-		przekroje = new CrossSection*[liczbaPrzekrojow];
-		przekroje[0] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, parametryWyswietlania.x_mm*parametryWyswietlania.xSizeScale, parametryWyswietlania.y_mm*parametryWyswietlania.ySizeScale);
-		przekroje[0]-> MacierzSwiata = Macierz4::ObrotY(180);
-		przekroje[0]->IndeksTekstury = indeksyTekstur[0];
-		break;
-	case TYPE_3D:
-		liczbaPrzekrojow = parametryWyswietlania.depth_px; +parametryWyswietlania.ascanSize_px + parametryWyswietlania.bscanSize_px;
-		przekroje = new CrossSection*[liczbaPrzekrojow];
-		float bskany_krok = ((float)parametryWyswietlania.z_mm*parametryWyswietlania.zSizeScale) / (parametryWyswietlania.depth_px-1);
-		float przekroje_poziome_krok = ((float)parametryWyswietlania.x_mm*parametryWyswietlania.xSizeScale) / (parametryWyswietlania.bscanSize_px-1);
-		float przekroje_poprzeczne_krok = ((float)parametryWyswietlania.y_mm*parametryWyswietlania.ySizeScale) / (parametryWyswietlania.ascanSize_px-1);
-
-		float rozmiarX = parametryWyswietlania.x_mm*parametryWyswietlania.xSizeScale;
-		float rozmiarY = parametryWyswietlania.y_mm*parametryWyswietlania.ySizeScale;
-		float rozmiarZ = parametryWyswietlania.z_mm*parametryWyswietlania.zSizeScale;
-
-		for (size_t i = 0, end = parametryWyswietlania.depth_px; i != end; ++i) {
-
-			przekroje[i] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, rozmiarX, rozmiarY);
-			przekroje[i]->MacierzSwiata = Macierz4::Przesuniecie(0.0f, 0.0f, -bskany_krok*(end-1- i));
-			//przekroje[i]->MacierzSwiata = Macierz4::Przesuniecie(0.0f, 0.0f, -bskany_krok*i);
-			przekroje[i]->IndeksTekstury = indeksyTekstur[i];
-		}
-
-		for (size_t i = 0, end = parametryWyswietlania.ascanSize_px; i != end; ++i) {
-
-			przekroje[i + parametryWyswietlania.depth_px] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, rozmiarX, rozmiarZ);
-			przekroje[i + parametryWyswietlania.depth_px]->MacierzSwiata = Macierz4::Przesuniecie(0.0f,przekroje_poprzeczne_krok*(end-1 - i)-rozmiarY/2, -rozmiarZ / 2) *Macierz4::ObrotX(-270);
-			przekroje[i + parametryWyswietlania.depth_px]->IndeksTekstury = indeksyTekstur[i+parametryWyswietlania.depth_px];
-
-		}
-		
-		for (size_t i = 0, end = parametryWyswietlania.bscanSize_px; i != end; ++i) {
-
-			przekroje[i + parametryWyswietlania.depth_px+ parametryWyswietlania.ascanSize_px] = new CrossSection(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor, rozmiarZ, rozmiarY);
-			przekroje[i + parametryWyswietlania.depth_px + parametryWyswietlania.ascanSize_px]->MacierzSwiata = Macierz4::Przesuniecie(i*przekroje_poziome_krok-rozmiarX/2, 0.0f, -((parametryWyswietlania.depth_px-1)*bskany_krok-rozmiarZ/2))*Macierz4::ObrotY(270);
-			przekroje[i + parametryWyswietlania.depth_px + parametryWyswietlania.ascanSize_px]->IndeksTekstury = indeksyTekstur[i + parametryWyswietlania.depth_px + parametryWyswietlania.ascanSize_px];
-		}
-		
-		break;
-	}
-	
-	return liczbaPrzekrojow;
-}
-*/
 void OknoGL::RysujAktorow() {
 
 	for (unsigned int i = 0; i < liczbaPrzekrojow; ++i) {
@@ -929,7 +867,9 @@ void OknoGL::RysujAktorow() {
 		MVP.Ustaw(VP);
 		MVP.PomnozZPrawej(przekroje[i]->MacierzSwiata);
 		MVP.PrzeslijWartosc();
-	
+		glBindTexture(GL_TEXTURE_2D, przekroje[i]->IndeksTekstury);
+		przekroje[i]->Rysuj();
+		/*
 		if (teksturowanieWlaczone) {
 
 			if (przekroje[i]->IndeksTekstury != -1) {
@@ -943,7 +883,7 @@ void OknoGL::RysujAktorow() {
 
 		} else glUniform1i(glGetUniformLocation(idProgramuShaderow, "Teksturowanie"), false);
 
-		przekroje[i]->Rysuj();
+		przekroje[i]->Rysuj();*/
 	}
 }
 

@@ -110,6 +110,7 @@
     </Link>
     <CudaCompile>
       <PtxAsOptionV>true</PtxAsOptionV>
+      <AdditionalOptions>--default-stream per-thread %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

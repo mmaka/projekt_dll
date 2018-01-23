@@ -99,6 +99,7 @@ extern class Wizualizator {
 	std::thread wyswietlacz;
 	std::unique_ptr<CudaTekstury> cudaTekstury;
 	char *dane;
+	unsigned char defKol[256][3];
 	std::unique_ptr<OknoGL> okno;
 
 public:
@@ -107,7 +108,7 @@ public:
 
 
 		//cudaTeksturyZ = new CudaTekstury(paramsZ);
-		cudaTekstury = std::make_unique<CudaTekstury>(params,dane);
+		cudaTekstury = std::make_unique<CudaTekstury>(params,dane,defKol);
 		//cudaTeksturyZ->init();
 	}
 	int StworzOkno() {
@@ -130,7 +131,7 @@ public:
 	}
 
 
-	void setParams(WIZUALIZACJA type, size ileBskanow, size ilePrzekrojowPoprzecznych, size ilePrzekrojowPoziomych, float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize, size ascanSize, size depth, float x_size_mm, float y_size_mm, float z_size_mm, int jasn, int kontr,char *plik)
+	void setParams(WIZUALIZACJA type, size ileBskanow, size ilePrzekrojowPoprzecznych, size ilePrzekrojowPoziomych, float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize, size ascanSize, size depth, float x_size_mm, float y_size_mm, float z_size_mm, int jasn, int kontr,char *plik,char* kolory)
 	{
 		params.typ = type;
 		params.liczbaBskanow = ileBskanow;
@@ -148,6 +149,7 @@ public:
 		params.jasnosc = jasn;
 		params.kontrast = kontr;
 		wczytajDaneBinarne(plik);
+		pobierzDefinicjeKolorow(kolory);
 	}
 	void wczytajDaneBinarne(char *nazwaPliku) {
 
@@ -171,6 +173,38 @@ public:
 		}
 
 		plik.close();
+	}
+
+	void pobierzDefinicjeKolorow(char *nazwaPliku) {
+
+		FILE *plik;
+		errno_t err = fopen_s(&plik, nazwaPliku, "rb");
+		if (err == 0) {
+			for (int j = 0; j < 256; j++)
+				fread(&defKol[j], 1, 3, plik);
+
+			fclose(plik);
+		}
+		else {
+
+			MessageBox(NULL, "blad pobieranie kolorowo", "", MB_OK);
+
+		}
+
+		
+
+		/*
+		std::ofstream dane("def.bin", std::ios::in | std::ios::binary);
+
+		if (dane.is_open()) {
+
+		std::stringstream s;
+		for (int j = 0; j < 256; j++) {
+		std::copy_n(std::istreambuf_iterator<char>(dane.rdbuf()), 3, std::ostreambuf_iterator<char>(s));
+		s.read((char*)defKol[j], 3);
+		}
+		}
+		*/
 	}
 };
 

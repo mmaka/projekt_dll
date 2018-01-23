@@ -29,8 +29,7 @@ public:
 		liczba_Przekrojow_Poziomych = params.liczbaPrzekrojowPoziomych;
 	}
 
-	inline unsigned int liczbaTekstur() const { return liczba_B_skanow +liczba_Przekrojow_Poprzecznych + liczba_Przekrojow_Poziomych;}
-	//inline unsigned int liczbaTekstur() const { return liczba_B_skanow + b_skan_rozmiar_x + b_skan_rozmiar_y; }
+	inline unsigned int liczbaTekstur() const { return liczba_Przekrojow_Poziomych+ liczba_B_skanow + liczba_Przekrojow_Poprzecznych;}
 	void inline parametryTekstur(unsigned int *indeksyTekstur, unsigned int ileTekstur, TYP_PRZEKROJU typ) {
 
 		unsigned int szerokoscTekstury = 0;
@@ -45,14 +44,10 @@ public:
 		case TYP_PRZEKROJU::PRZEKROJ_POPRZECZNY:
 			szerokoscTekstury = b_skan_rozmiar_x;
 			wysokoscTekstury = glebokoscPomiaru;
-			//szerokoscTekstury = b_skan_rozmiar_x;
-			//wysokoscTekstury = liczba_B_skanow;
 			break;
 		case TYP_PRZEKROJU::PRZEKROJ_POZIOMY:
 			szerokoscTekstury = glebokoscPomiaru;
 			wysokoscTekstury = b_skan_rozmiar_y;
-			//szerokoscTekstury = liczba_B_skanow;
-			//wysokoscTekstury = b_skan_rozmiar_y;
 			break;
 		}
 

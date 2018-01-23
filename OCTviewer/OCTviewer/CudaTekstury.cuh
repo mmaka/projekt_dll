@@ -15,7 +15,6 @@
 #include<thread>
 
 
-
 static void HandlerError(cudaError_t err, const char *file, int line) {
 	if (err != cudaSuccess) {
 		printf("%s in %s at line %d\n", cudaGetErrorString(err),
@@ -33,26 +32,27 @@ enum class EDYCJA_MAPY_KOLOROW {ZMNIEJSZ_KONTRAST,ZWIEKSZ_KONTRAST,ZMNIEJSZ_JASN
 
 class CudaTekstury {
 
-//	cudaArray_t *tabliceCuda2;
-//	cudaSurfaceObject_t *bskany;
-//	cudaSurfaceObject_t *przekrojePoprzeczne;
-//	cudaSurfaceObject_t *przekrojePoziome;
-	cudaStream_t *streams;
-
 	std::vector<cudaArray_t> tabliceCuda;
 	std::vector<cudaSurfaceObject_t> bskany;
 	std::vector<cudaSurfaceObject_t> przekrojePoprzeczne;
 	std::vector<cudaSurfaceObject_t> przekrojePoziome;
-//	std::vector<cudaStream_t> streams;
+	std::vector<cudaStream_t> streams;
 
-	
 //	unsigned int *daneGPU;
 	oct_t *daneGPU;
+
+	oct_t *daneGPU_bskan_oct;
+	oct_t *daneGPU_ppop_oct;
+	oct_t *daneGPU_ppoz_oct;
+
+	uchar4 *daneGPU_bskan_kolor;
+	uchar4 *daneGPU_ppop_kolor;
+	uchar4 *daneGPU_ppoz_kolor;
+	
 	uchar4 *daneGPU_tab;
 	uchar4 *daneGPU_ppop;
 	uchar4 *daneGPU_ppoz;
-
-
+	
 	size liczbaBskanow;
 	size liczbaPrzekrojowPoprzecznych;
 	size liczbaPrzekrojowPoziomych;
@@ -69,17 +69,14 @@ class CudaTekstury {
 	oct_t *daneCPU;//tmp
 	//mapa kolorów
 	int jasnosc, kontrast;
-	unsigned char mapaSzarosci[256], defKol[256][3];
-	uchar3 mapaKolorow[256];
+	unsigned char defKol[256][3];
 	uchar4 mapaKolorySzarosc[256];
-	unsigned char *d_mapaSzarosci;
-	uchar3 *d_mapaKolorow;
 	uchar4 *d_mapaKolory_Szarosc;
 	bool inicjalizacja = false;
-	bool zmianaKoloru;
+	bool kolor;
 
 public:
-	 explicit CudaTekstury(visualizationParams params,char* dane): 
+	 explicit CudaTekstury(visualizationParams params,char* dane,unsigned char kolory[256][3]): 
 		liczbaBskanow(params.liczbaBskanow), 
 		liczbaPrzekrojowPoprzecznych(params.liczbaPrzekrojowPoprzecznych), 
 		liczbaPrzekrojowPoziomych(params.liczbaPrzekrojowPoziomych),
@@ -87,105 +84,62 @@ public:
 		kontrast(params.kontrast), 
 		rozmiarAskanu(params.ascanSize_px),
 		szerokoscBskanu(params.bscanSize_px),
-		glebokoscPomiaru(params.depth_px),daneCPU(dane),zmianaKoloru(true){
+		glebokoscPomiaru(params.depth_px),daneCPU(dane),kolor(true){
 
+		 for (int i = 0; i < 256; ++i) {
+			 defKol[i][0] = kolory[i][0];
+			 defKol[i][1] = kolory[i][1];
+			 defKol[i][2] = kolory[i][2];
+		}
+			
 		krok_bskan = (float)glebokoscPomiaru / (liczbaBskanow-1);
 		krok_przekrojePoprzeczne = (float)rozmiarAskanu / (liczbaPrzekrojowPoprzecznych-1);
 		krok_przekrojePoziome = (float)szerokoscBskanu / (liczbaPrzekrojowPoziomych-1);
-		
-
+	
 	}
 	
 	CudaTekstury(const CudaTekstury&) = delete;
 	void operator=(const CudaTekstury&) = delete;
 	void init();
-//	cudaArray_t* cudaArray() { return tabliceCuda2; }
 	std::vector<cudaArray_t>& cudaArray() { return tabliceCuda; }
 	void pobierzDaneCPU();
-	inline size liczbaPrzekrojow() const { return liczbaBskanow; }// +liczbaPrzekrojowPoziomych + liczbaPrzekrojowPoprzecznych;} //constexpr
-	inline size_t calkowityRozmiarDanych() const { return rozmiarAskanu*szerokoscBskanu*glebokoscPomiaru; }//constexpr
-	void wczytajDane(const char *nazwaPliku);
-	void wczytajBMP(char* plik);
-	void wczytajDaneBinarne(char *nazwaPliku);
-	void tworzPrzekroje();
-	void launch_bskany(size_t i);
-	void launch_bskany2();
-	void launch_przekrojePoprzeczne(size_t i);
-	void launch_przekrojePoziome(size_t i);
-	void launch_przekrojePoprzeczne2();
-	void launch_przekrojePoziome2();
-	void tworzenie_tekstur(cudaArray_t *tab, cudaSurfaceObject_t *surf);
-	void przygotowanieTekstur();
-	void wprowadzTestoweDane();
-	void pobierzDefinicjeKolorow();
+	inline size liczbaPrzekrojow() const { return liczbaBskanow +liczbaPrzekrojowPoziomych + liczbaPrzekrojowPoprzecznych;}
+	inline size_t calkowityRozmiarDanych() const { return rozmiarAskanu*szerokoscBskanu*glebokoscPomiaru; }
 	void ustawMapeKolorow();
 	void edycjaMapyKolorow(EDYCJA_MAPY_KOLOROW tryb, int value);
-	void odswiezTekstury();
-	void odswiezTekstury2();
 	void odswiez_bskany();
 	void odswiez_przekrojePoprzeczne();
 	void odswiez_przekrojePoziome();
-	void pobierzDaneCPU2();
 	void sprzatanie();
-	void tworzDane();
-	void launch_przygotowanie_bskanow(size_t i);
-	void przepisanie();
+	void przepisanie_oct_t_ppop();
+	void przepisanie_oct_t_ppoz();
+	void przepisanie_oct_t_bskan();
+	void przepisanie_oct_t();
+	void kolorowaniePpoz();
+	void kolorowaniePpop();
+	void kolorowanieBskan();
+	void kolorowanie_oct_t();
+	void kopiowaniePrzekrojow();
+	void pokolorujTeksturyIprzeslijDoTablicCuda();
+	void ppoz_przepisanie_i_kolorowanie();
+	void ppop_przepisanie_i_kolorowanie();
+	void bskan_przepisanie_i_kolorowanie();
 
-	void ustawMapeKolorow2();
-	void kolorowanieB();
-	void kopiowanieB();
-	void launch_bskany_bezkoloru(size_t i);
-	void kopiowanieP();
+	~CudaTekstury(){
 
-	~CudaTekstury() {
+		HANDLE_ERROR(cudaFree(daneGPU));
+		HANDLE_ERROR(cudaFree(daneGPU_bskan_oct));
+		HANDLE_ERROR(cudaFree(daneGPU_ppop_oct));
+		HANDLE_ERROR(cudaFree(daneGPU_ppoz_oct));
+		HANDLE_ERROR(cudaFree(daneGPU_bskan_kolor));
+		HANDLE_ERROR(cudaFree(daneGPU_ppop_kolor));
+		HANDLE_ERROR(cudaFree(daneGPU_ppoz_kolor));
+		HANDLE_ERROR(cudaFree(daneGPU_tab));
+		HANDLE_ERROR(cudaFree(daneGPU_ppop));
+		HANDLE_ERROR(cudaFree(daneGPU_ppoz));
 
-//		if (inicjalizacja) {
-
-			//for (size_t i = 0; i < liczbaStrumieni; ++i) HANDLE_ERROR(cudaStreamDestroy(streams[i]));
-
-			//HANDLE_ERROR(cudaFree(d_mapaKolorow));
-//			delete[] streams;
-//		}
-		
-
-		
-		
-	//	delete[] tabliceCuda;
-	//	delete[] bskany;
-	//	delete[] przekrojePoprzeczne;
-	//	delete[] przekrojePoziome;
-	//	delete[] streams;
-
-//		HANDLE_ERROR(cudaFree(daneGPU));
-		//if (daneGPU != nullptr) delete[] daneGPU;
-	//	if (daneCPU != nullptr) delete[] daneCPU;
 	}
 };
-
-/*
-static void ustanowienieWspolpracyCudaOpenGL(GLuint* indeksy, cudaArray_t* tablice_cuda, size_t ileTekstur) {
-
-	cudaGraphicsResource_t* resources = new cudaGraphicsResource_t[ileTekstur];
-	cudaStream_t strumien;
-	cudaStreamCreateWithFlags(&strumien, cudaStreamDefault);
-	GLenum target = GL_TEXTURE_2D;
-	//unsigned int  flags = cudaGraphicsRegisterFlagsNone;
-	unsigned int flags = cudaGraphicsRegisterFlagsSurfaceLoadStore;
-	unsigned int arrayIndex = 0;
-	unsigned int mipLevel = 0;
-
-	for (size_t i = 0; i != ileTekstur; ++i) {
-
-		HANDLE_ERROR(cudaGraphicsGLRegisterImage(&resources[i], indeksy[i], target, flags));
-		HANDLE_ERROR(cudaGraphicsMapResources(1, &resources[i], strumien));
-		HANDLE_ERROR(cudaGraphicsSubResourceGetMappedArray(&tablice_cuda[i], resources[i], arrayIndex, mipLevel));
-	}
-
-	HANDLE_ERROR(cudaGraphicsUnmapResources(ileTekstur, resources, strumien));
-
-	delete[] resources;
-}
-*/
 
 static void ustanowienieWspolpracyCudaOpenGL(GLuint* indeksy, std::vector<cudaArray_t>& tablice_cuda, int ileTekstur) {
 
