@@ -34,10 +34,10 @@ struct visualizationParams {
 
 };
 
-extern "C" OCTVIEWER_API void setParams(WIZUALIZACJA type,size liczbaBskanow,size liczbaPrzekrojowPoprzecznych,size liczbaPrzekrojowPoziomych,float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize,size ascanSize,size depth_px, float x_size_mm, float y_size_mm, float z_size_mm,int jasnosc,int kontrast,char* plik,char* kolory);
+extern "C" OCTVIEWER_API void setParams(WIZUALIZACJA type,size liczbaBskanow,size liczbaPrzekrojowPoprzecznych,size liczbaPrzekrojowPoziomych,float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize,size ascanSize,size depth_px, float x_size_mm, float y_size_mm, float z_size_mm,int jasnosc,int kontrast);
 extern "C" OCTVIEWER_API void init();
 extern "C" OCTVIEWER_API void loadData(const char* plik);
-extern "C" OCTVIEWER_API void updateData();
+extern "C" OCTVIEWER_API void loadColorDef(const char* plik);
 extern "C" OCTVIEWER_API void display();
 extern "C" OCTVIEWER_API void clear();
 

@@ -1,5 +1,7 @@
 #include"CudaTekstury.cuh"
 
+__constant__ size rozmiaryDanych[6];
+
 void CudaTekstury::init() {
 
 	cudaDeviceProp prop;
@@ -12,21 +14,18 @@ void CudaTekstury::init() {
 	
 	auto f = std::async(std::launch::async, [&] {
 
-	//	pobierzDefinicjeKolorow();
 		ustawMapeKolorow();
 		HANDLE_ERROR(cudaMalloc(&d_mapaKolory_Szarosc, 256 * sizeof(uchar4)));
 		HANDLE_ERROR(cudaMemcpy(d_mapaKolory_Szarosc, mapaKolorySzarosc, 256 * sizeof(uchar4), cudaMemcpyHostToDevice));
 
 	});
 
-	bskany.reserve(liczbaBskanow);
-	przekrojePoprzeczne.reserve(liczbaPrzekrojowPoprzecznych);
-	przekrojePoziome.reserve(liczbaPrzekrojowPoziomych);
 	streams.resize(liczbaStrumieni);
 	for (size_t i = 0; i < liczbaStrumieni; ++i)
-		HANDLE_ERROR(cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking));
+		HANDLE_ERROR(cudaStreamCreate(&streams[i]));
 
 	inicjalizacja = true;
+	
 }
 
 void CudaTekstury::pobierzDaneCPU() {
@@ -81,91 +80,110 @@ void CudaTekstury::ustawMapeKolorow() {
 
 void CudaTekstury::edycjaMapyKolorow(EDYCJA_MAPY_KOLOROW tryb, int value) {
 
-	static bool poprawneDane = false;
-
-	switch (tryb)
-	{
-	case EDYCJA_MAPY_KOLOROW::ZWIEKSZ_KONTRAST:
-	{
-		int tmp = kontrast - value;
-
-		if (tmp >= 0) {
-
-			kontrast = tmp;
-			poprawneDane = true;
-
-		}
-		else {
-
-			kontrast = 0;
-
-		}
-	}
-		break;
-	case EDYCJA_MAPY_KOLOROW::ZMNIEJSZ_KONTRAST:
-	{
-		int tmp = kontrast + value;
+	//gwarantujemy, ¿e kolejne przetwarzanie mapy zacznie siê po zakoñczeniu trwaj¹cego przetwarzania
+	if (!przetwarzanieMapyKolorow.test_and_set()) {
 		
-		if (tmp <= 256) {
+		//przed przetworzeniem mapy kolorów i uruchomieniem funkcji j¹dra sprawdzamy czy wartoœci kontrastu i jasnoœci nale¿¹ do odpowiedniego zakresu
+		//np. gdy kontrast osi¹gnie wartoœæ 0, zmniejszanie wartoœci nie powinno mieæ miejsca
+		bool czyOdswiezamyKoloryPrzekrojow = false;
 
-			kontrast = tmp;
-			poprawneDane = true;
+		switch (tryb)
+		{
+		case EDYCJA_MAPY_KOLOROW::ZWIEKSZ_KONTRAST:
+		{
+			int tmp = kontrast - value;
 
+			if (tmp >= 0) {
+
+				kontrast = tmp;
+				czyOdswiezamyKoloryPrzekrojow = true;
+
+			}
+			else {
+
+				kontrast = 0;
+
+			}
 		}
-		else {
-
-			kontrast = 256;
-		}
-	}
 		break;
-	case EDYCJA_MAPY_KOLOROW::ZWIEKSZ_JASNOSC:
-	{
-		int tmp = jasnosc - value;
+		case EDYCJA_MAPY_KOLOROW::ZMNIEJSZ_KONTRAST:
+		{
+			int tmp = kontrast + value;
 
-		if (tmp >= 0) {
+			if (tmp <= 256) {
 
-			jasnosc = tmp;
-			poprawneDane = true;
+				kontrast = tmp;
+				czyOdswiezamyKoloryPrzekrojow = true;
 
+			}
+			else {
+
+				kontrast = 256;
+			}
 		}
-		else {
-
-			jasnosc = 0;
-		}
-	}
 		break;
-	case EDYCJA_MAPY_KOLOROW::ZMNIEJSZ_JASNOSC:
-	{
-		int tmp = jasnosc + value;
+		case EDYCJA_MAPY_KOLOROW::ZWIEKSZ_JASNOSC:
+		{
+			int tmp = jasnosc - value;
 
-		if (jasnosc <= 256) {
+			if (tmp >= 0) {
 
-			jasnosc = tmp;
-			poprawneDane = true;
+				jasnosc = tmp;
+				czyOdswiezamyKoloryPrzekrojow = true;
+
+			}
+			else {
+
+				jasnosc = 0;
+			}
+		}
+		break;
+		case EDYCJA_MAPY_KOLOROW::ZMNIEJSZ_JASNOSC:
+		{
+			int tmp = jasnosc + value;
+
+			if (jasnosc <= 256) {
+
+				jasnosc = tmp;
+				czyOdswiezamyKoloryPrzekrojow = true;
+
+			}
+			else {
+
+				jasnosc = 256;
+			}
+		}
+		break;
+		default:
+			break;
+		}
+
+		if (czyOdswiezamyKoloryPrzekrojow) {
+
+			ustawMapeKolorow();
+			LARGE_INTEGER countPerSec, tim1, tim2;
+			QueryPerformanceFrequency(&countPerSec);
+			QueryPerformanceCounter(&tim1);
+			HANDLE_ERROR(cudaMemcpy(d_mapaKolory_Szarosc, mapaKolorySzarosc, 256 * sizeof(uchar4), cudaMemcpyHostToDevice));
+			QueryPerformanceCounter(&tim2);
+			double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
+			//	printf("czas kopiowania mapy: %f\n", j);
+			pokolorujTeksturyIprzeslijDoTablicCuda();
 
 		}
-		else {
 
-			jasnosc = 256;
-		}
+		przetwarzanieMapyKolorow.clear();
 	}
-		break;
-	default:
-		break;
-	}
+	
+}
+void CudaTekstury::trybWyswietlaniaRGBczyGS(){
 
-	if (poprawneDane) {
+	if (!zmianaTrybuRGBnaGS.test_and_set()) {
 
-		ustawMapeKolorow();
-		LARGE_INTEGER countPerSec, tim1, tim2;
-		QueryPerformanceFrequency(&countPerSec);
-		QueryPerformanceCounter(&tim1);
-		HANDLE_ERROR(cudaMemcpy(d_mapaKolory_Szarosc, mapaKolorySzarosc, 256 * sizeof(uchar4), cudaMemcpyHostToDevice));
-		QueryPerformanceCounter(&tim2);
-		double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
-	//	printf("czas kopiowania mapy: %f\n", j);
+		kolor = !kolor;
 		pokolorujTeksturyIprzeslijDoTablicCuda();
-		poprawneDane = false;
+		zmianaTrybuRGBnaGS.clear();
+
 	}
 }
 
@@ -175,6 +193,18 @@ void CudaTekstury::sprzatanie() {
 	if (inicjalizacja) {
 
 		HANDLE_ERROR(cudaFree(d_mapaKolory_Szarosc));
+	//	HANDLE_ERROR(cudaFree(daneGPU));
+	//	HANDLE_ERROR(cudaFree(daneGPU_bskan_oct));
+	//	HANDLE_ERROR(cudaFree(daneGPU_ppop_oct));
+	//	HANDLE_ERROR(cudaFree(daneGPU_ppoz_oct));
+
+		HANDLE_ERROR(cudaFree(daneGPU_bskan_kolor));
+		if (trybWyswietlania == WIZUALIZACJA::TYP_3D) {
+
+			HANDLE_ERROR(cudaFree(daneGPU_ppop_kolor));
+			HANDLE_ERROR(cudaFree(daneGPU_ppoz_kolor));
+		}
+		
 		for (size_t i = 0; i < liczbaStrumieni; ++i) HANDLE_ERROR(cudaStreamDestroy(streams[i]));
 
 	}
@@ -188,12 +218,11 @@ __global__ void przepisanieObuPrzekrojow(const uchar4 *dstGPU, uchar4 * dstGPU_p
 
 	if (threadIdx.x < blockDim.x) {
 
-		dstGPU_ppop[blockIdx.x*blockDim.x*gridDim.y + blockIdx.y*blockDim.x + threadIdx.x] = dstGPU[blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x]; //dstGPU[nrB + nrW + nrKol];
-		dstGPU_ppoz[threadIdx.x*gridDim.y*gridDim.x + blockIdx.x*gridDim.y + blockIdx.y] = dstGPU[blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x]; //dstGPU[nrB + nrW + nrKol];
+		dstGPU_ppop[blockIdx.x*blockDim.x*gridDim.y + blockIdx.y*blockDim.x + threadIdx.x] = dstGPU[blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x]; 
+		dstGPU_ppoz[threadIdx.x*gridDim.y*gridDim.x + blockIdx.x*gridDim.y + blockIdx.y] = dstGPU[blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x];
 																								
 	}
 }
-
 
 __global__ void kolorowanie_bskan(uchar4 *dstGPU, const oct_t *source, const uchar4 *kolory ) {
 
@@ -226,8 +255,9 @@ __global__ void wybraniePpoz(const oct_t *dstGPU, oct_t * dstGPU_ppoz,size krok_
 
 	if (threadIdx.x < blockDim.x) {
 
-		register int ktory_ppoz = blockIdx.y*krok_ppoz;//chyba bez sensu
-		dstGPU_ppoz[blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x] = dstGPU[threadIdx.x*gridDim.x*szerB + blockIdx.x*szerB + ktory_ppoz];
+	//	register int ktory_ppoz = blockIdx.y*krok_ppoz;//chyba bez sensu
+		dstGPU_ppoz[blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x] = dstGPU[threadIdx.x*gridDim.x*szerB + blockIdx.x*szerB + blockIdx.y*krok_ppoz];
+	//	dstGPU_ppoz[blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x] = dstGPU[threadIdx.x*gridDim.x*rozmiaryDanych[0] + blockIdx.x*rozmiaryDanych[0] + blockIdx.y*rozmiaryDanych[5]];
 	}
 }
 
@@ -236,8 +266,9 @@ __global__ void wybraniePpop(const oct_t *dstGPU, oct_t * dstGPU_ppop, size krok
 
 	if (threadIdx.x < blockDim.x) {
 
-		register int ktory_ppop = blockIdx.x * krok_ppop;
-		dstGPU_ppop[blockIdx.x*blockDim.x*gridDim.y + blockIdx.y*blockDim.x + threadIdx.x] = dstGPU[blockIdx.y*rozA*blockDim.x + ktory_ppop*blockDim.x + threadIdx.x]; //dstGPU[nrB + nrW + nrKol];
+	//	register int ktory_ppop = blockIdx.x * krok_ppop;
+		dstGPU_ppop[blockIdx.x*blockDim.x*gridDim.y + blockIdx.y*blockDim.x + threadIdx.x] = dstGPU[blockIdx.y*rozA * blockDim.x + blockIdx.x * krok_ppop * blockDim.x + threadIdx.x];
+		//dstGPU_ppop[blockIdx.x*blockDim.x*gridDim.y + blockIdx.y*blockDim.x + threadIdx.x] = dstGPU[blockIdx.y*rozmiaryDanych[1] *blockDim.x + blockIdx.x * rozmiaryDanych[4] *blockDim.x + threadIdx.x];
 
 	}
 }
@@ -247,9 +278,9 @@ __global__ void wybranieBskanow(const oct_t *dstGPU, oct_t * dstGPU_bskan,size k
 
 	if (threadIdx.x < blockDim.x) {
 
-		register int ktory_bskan = blockIdx.y*krok_bskany;
-		dstGPU_bskan[blockIdx.y*blockDim.x*gridDim.x + blockIdx.x*blockDim.x + threadIdx.x] = dstGPU[ktory_bskan*blockDim.x*gridDim.x + blockIdx.x*blockDim.x + threadIdx.x];
-		
+		//register int ktory_bskan = blockIdx.y*krok_bskany;
+		//dstGPU_bskan[blockIdx.y*blockDim.x*gridDim.x + blockIdx.x*blockDim.x + threadIdx.x] = dstGPU[blockIdx.y*rozmiaryDanych[3]*blockDim.x*gridDim.x + blockIdx.x*blockDim.x + threadIdx.x];
+		dstGPU_bskan[blockIdx.y*blockDim.x*gridDim.x + blockIdx.x*blockDim.x + threadIdx.x] = dstGPU[blockIdx.y*krok_bskany * blockDim.x*gridDim.x + blockIdx.x*blockDim.x + threadIdx.x];
 
 	}
 }
@@ -295,8 +326,8 @@ void CudaTekstury::kolorowanieBskan() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	//kolorowanie_bskan << <grid, block, 0, streams[0] >> >(daneGPU_bskan_kolor, daneGPU_bskan_oct, d_mapaKolory_Szarosc);
-	kolorowanie_bskan << <grid, block>> >(daneGPU_bskan_kolor, daneGPU_bskan_oct, d_mapaKolory_Szarosc);
+	kolorowanie_bskan << <grid, block, 0, streams[0] >> >(daneGPU_bskan_kolor, daneGPU_bskan_oct, d_mapaKolory_Szarosc);
+	//kolorowanie_bskan << <grid, block>> >(daneGPU_bskan_kolor, daneGPU_bskan_oct, d_mapaKolory_Szarosc);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas kolorowania: %f\n", j);
@@ -305,7 +336,6 @@ void CudaTekstury::kolorowanieBskan() {
 		fprintf(stderr, "addKernelll launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		exit(EXIT_FAILURE);
 	}
-//	HANDLE_ERROR(cudaFree(daneGPU));
 }
 
 void CudaTekstury::kolorowaniePpop() {
@@ -318,8 +348,8 @@ void CudaTekstury::kolorowaniePpop() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	//kolorowanie_ppop << <grid, block, 0, streams[1] >> >(daneGPU_ppop_kolor, daneGPU_ppop_oct, d_mapaKolory_Szarosc);
-	kolorowanie_ppop << <grid, block>> >(daneGPU_ppop_kolor, daneGPU_ppop_oct, d_mapaKolory_Szarosc);
+	kolorowanie_ppop << <grid, block, 0, streams[1] >> >(daneGPU_ppop_kolor, daneGPU_ppop_oct, d_mapaKolory_Szarosc);
+	//kolorowanie_ppop << <grid, block>> >(daneGPU_ppop_kolor, daneGPU_ppop_oct, d_mapaKolory_Szarosc);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas kolorowania: %f\n", j);
@@ -328,7 +358,6 @@ void CudaTekstury::kolorowaniePpop() {
 		fprintf(stderr, "addKernelll launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		exit(EXIT_FAILURE);
 	}
-//	HANDLE_ERROR(cudaFree(daneGPU));
 }
 
 void CudaTekstury::kolorowaniePpoz() {
@@ -341,8 +370,8 @@ void CudaTekstury::kolorowaniePpoz() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	//kolorowanie_ppoz << <grid, block, 0, streams[2] >> >(daneGPU_ppoz_kolor, daneGPU_ppoz_oct, d_mapaKolory_Szarosc);	
-	kolorowanie_ppoz << <grid, block>> >(daneGPU_ppoz_kolor, daneGPU_ppoz_oct, d_mapaKolory_Szarosc);
+	kolorowanie_ppoz << <grid, block, 0, streams[2] >> >(daneGPU_ppoz_kolor, daneGPU_ppoz_oct, d_mapaKolory_Szarosc);	
+	//kolorowanie_ppoz << <grid, block>> >(daneGPU_ppoz_kolor, daneGPU_ppoz_oct, d_mapaKolory_Szarosc);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas kolorowania: %f\n", j);
@@ -351,7 +380,6 @@ void CudaTekstury::kolorowaniePpoz() {
 		fprintf(stderr, "addKernelll launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		exit(EXIT_FAILURE);
 	}
-	//HANDLE_ERROR(cudaFree(daneGPU));
 }
 
 void CudaTekstury::ppoz_przepisanie_i_kolorowanie() {
@@ -365,8 +393,8 @@ void CudaTekstury::ppoz_przepisanie_i_kolorowanie() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	wyborIKolorowaniePpoz << <grid, block>> > (daneGPU, daneGPU_ppoz_kolor, krok_przekrojePoziome, szerokoscBskanu, mapaKolorySzarosc);
-	//wyborIKolorowaniePpoz << <grid, block, 0, streams[2] >> > (daneGPU, daneGPU_ppoz_kolor, krok_przekrojePoziome, szerokoscBskanu, mapaKolorySzarosc);
+	//wyborIKolorowaniePpoz << <grid, block>> > (daneGPU, daneGPU_ppoz_kolor, krok_przekrojePoziome, szerokoscBskanu, mapaKolorySzarosc);
+	wyborIKolorowaniePpoz << <grid, block, 0, streams[2] >> > (daneGPU, daneGPU_ppoz_kolor, krok_przekrojePoziome, szerokoscBskanu, mapaKolorySzarosc);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas przepisania: %f\n", j);
@@ -375,7 +403,6 @@ void CudaTekstury::ppoz_przepisanie_i_kolorowanie() {
 		fprintf(stderr, "addKernellll launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		exit(EXIT_FAILURE);
 	}
-
 }
 
 
@@ -390,8 +417,8 @@ void CudaTekstury::ppop_przepisanie_i_kolorowanie() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	//wyborIKolorowaniePpop << <grid, block, 0, streams[1] >> > (daneGPU, daneGPU_ppop_kolor, krok_przekrojePoprzeczne, rozmiarAskanu, mapaKolorySzarosc);
-	wyborIKolorowaniePpop << <grid, block>> > (daneGPU, daneGPU_ppop_kolor, krok_przekrojePoprzeczne, rozmiarAskanu, mapaKolorySzarosc);
+	wyborIKolorowaniePpop << <grid, block, 0, streams[1] >> > (daneGPU, daneGPU_ppop_kolor, krok_przekrojePoprzeczne, rozmiarAskanu, mapaKolorySzarosc);
+	//wyborIKolorowaniePpop << <grid, block>> > (daneGPU, daneGPU_ppop_kolor, krok_przekrojePoprzeczne, rozmiarAskanu, mapaKolorySzarosc);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas przepisania: %f\n", j);
@@ -400,7 +427,6 @@ void CudaTekstury::ppop_przepisanie_i_kolorowanie() {
 		fprintf(stderr, "addKernellll launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		exit(EXIT_FAILURE);
 	}
-
 }
 
 
@@ -416,8 +442,8 @@ void CudaTekstury::bskan_przepisanie_i_kolorowanie() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	//wyborIKolorowanieBskan << <grid, block, 0, streams[0] >> > (daneGPU, daneGPU_bskan_kolor, krok_bskan,mapaKolorySzarosc);
-	wyborIKolorowanieBskan << <grid, block>> > (daneGPU, daneGPU_bskan_kolor, krok_bskan, mapaKolorySzarosc);
+	wyborIKolorowanieBskan << <grid, block, 0, streams[0] >> > (daneGPU, daneGPU_bskan_kolor, krok_bskan,mapaKolorySzarosc);
+	//wyborIKolorowanieBskan << <grid, block>> > (daneGPU, daneGPU_bskan_kolor, krok_bskan, mapaKolorySzarosc);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas przepisania: %f\n", j);
@@ -426,7 +452,6 @@ void CudaTekstury::bskan_przepisanie_i_kolorowanie() {
 		fprintf(stderr, "addKernellll launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		exit(EXIT_FAILURE);
 	}
-
 }
 
 
@@ -440,8 +465,8 @@ void CudaTekstury::przepisanie_oct_t_ppoz() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	//wybraniePpoz << <grid, block, 0, streams[2] >> > (daneGPU,daneGPU_ppoz_oct,krok_przekrojePoziome,szerokoscBskanu);
-	wybraniePpoz << <grid, block>> > (daneGPU, daneGPU_ppoz_oct, krok_przekrojePoziome, szerokoscBskanu);
+	wybraniePpoz << <grid, block, 0, streams[2] >> > (daneGPU,daneGPU_ppoz_oct,krok_przekrojePoziome,szerokoscBskanu);
+	//wybraniePpoz << <grid, block>> > (daneGPU, daneGPU_ppoz_oct, krok_przekrojePoziome, szerokoscBskanu);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas przepisania: %f\n", j);
@@ -450,7 +475,6 @@ void CudaTekstury::przepisanie_oct_t_ppoz() {
 		fprintf(stderr, "addKernellll launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		exit(EXIT_FAILURE);
 	}
-
 }
 
 
@@ -465,8 +489,8 @@ void CudaTekstury::przepisanie_oct_t_ppop() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	//wybraniePpop << <grid, block, 0, streams[1] >> > (daneGPU, daneGPU_ppop_oct,krok_przekrojePoprzeczne,rozmiarAskanu);
-	wybraniePpop << <grid, block>> > (daneGPU, daneGPU_ppop_oct, krok_przekrojePoprzeczne, rozmiarAskanu);
+	wybraniePpop << <grid, block, 0, streams[1] >> > (daneGPU, daneGPU_ppop_oct,krok_przekrojePoprzeczne,rozmiarAskanu);
+	//wybraniePpop << <grid, block>> > (daneGPU, daneGPU_ppop_oct, krok_przekrojePoprzeczne, rozmiarAskanu);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas przepisania: %f\n", j);
@@ -490,10 +514,8 @@ void CudaTekstury::przepisanie_oct_t_bskan() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	//wybranieBskanow << <grid, block,0,streams[0] >> > (daneGPU, daneGPU_bskan_oct,krok_bskan);
-	wybranieBskanow << <grid, block>> > (daneGPU, daneGPU_bskan_oct, krok_bskan);
-	//	cudaDeviceSynchronize();
-	//cudaStreamSynchronize(0);
+	wybranieBskanow << <grid, block,0,streams[0] >> > (daneGPU, daneGPU_bskan_oct,krok_bskan);
+	//wybranieBskanow << <grid, block>> > (daneGPU, daneGPU_bskan_oct, krok_bskan);
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas przepisania: %f\n", j);
@@ -517,124 +539,45 @@ void CudaTekstury::kolorowanie_oct_t() {
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
 //	HANDLE_ERROR(cudaFree(daneGPU));
-/*
-	przepisanie_oct_t_bskan();
-	kolorowanieBskan();
-	for (int i = 0; i < liczbaBskanow; ++i) {
 
-		//int idx = floor(i*krok_bskan);
-		//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-		//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice,streams[0]));
+//std::future<void> f1;
+//std::future<void> f2;
+//std::future<void> f3;
 
-	}
+std::thread t1;
+std::thread t2;
+std::thread t3;
 
-	przepisanie_oct_t_ppop();
-	kolorowaniePpop();
-	for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i) {
-
-		//int idx = floor(i*krok_przekrojePoprzeczne);
-		//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-		//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice, streams[1]));
-
-	}
-
-	przepisanie_oct_t_ppoz();
-	kolorowaniePpoz();
-	for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i) {
-
-		//int idx = floor(i*krok_przekrojePoziome);
-		//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-		//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[2]));
-
-	}
-	*/
-
-	std::thread t1([&] { 
-		przepisanie_oct_t_bskan();
-		kolorowanieBskan(); 
-		for (int i = 0; i < liczbaBskanow; ++i) {
-
-		//int idx = floor(i*krok_bskan);
-		//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-		//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-		
-			//HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice,streams[0]));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice));
-
-	} });
-	std::thread t2([&] {
-		przepisanie_oct_t_ppop();
-		kolorowaniePpop(); 
-		for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i) {
-
-		//int idx = floor(i*krok_przekrojePoprzeczne);
-		//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-		//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-		
-			//HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice, streams[1]));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice));
-
-	} });
-	std::thread t3([&] {
-		przepisanie_oct_t_ppoz();
-		kolorowaniePpoz(); 
-		for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i) {
-
-		//int idx = floor(i*krok_przekrojePoziome);
-		//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-		//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-		
-			//HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[2]));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice));
-
-	}
-	});
-
-
-	t1.join();
-	t2.join();
-	t3.join();
+	switch (trybWyswietlania)
+	{
+	case WIZUALIZACJA::TYP_3D:
 	
-	/*
-	auto f1 = std::async(std::launch::async,[&] {
-		przepisanie_oct_t_bskan();
-		kolorowanieBskan();
-		for (int i = 0; i < liczbaBskanow; ++i) {
+//		f1 = std::async(std::launch::async, [&] {przepisanie_oct_t_bskan();kolorowanieBskan(); });
+//		f2 = std::async(std::launch::async, [&] {przepisanie_oct_t_ppop();	kolorowaniePpop(); });
+//		f3 = std::async(std::launch::async, [&] {przepisanie_oct_t_ppoz();	kolorowaniePpoz(); });
+		
+		t1 = std::thread([&] {przepisanie_oct_t_bskan(); kolorowanieBskan(); });
+		t2 = std::thread([&] {przepisanie_oct_t_ppop();	kolorowaniePpop(); });
+		t3 = std::thread([&] {przepisanie_oct_t_ppoz();	kolorowaniePpoz(); });
 
-			//int idx = floor(i*krok_bskan);
-			//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-			//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice));
+		break;
+	case WIZUALIZACJA::TYP_2D:
+	
+//		f1 = std::async(std::launch::async, [&] {przepisanie_oct_t_bskan(); kolorowanieBskan(); });
+		t1 = std::thread([&] {przepisanie_oct_t_bskan(); kolorowanieBskan(); });
+		break;
+	default:
+		break;
+	}
 
-		} });
-	auto f2 = std::async(std::launch::async, [&] {
-		przepisanie_oct_t_ppop();
-		kolorowaniePpop();
-		for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i) {
+	
+	t1.join();
+	if (trybWyswietlania == WIZUALIZACJA::TYP_3D) {
+		t2.join();
+		t3.join();
+	}
+	
 
-			//int idx = floor(i*krok_przekrojePoprzeczne);
-			//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-			//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice));
-
-		} });
-	auto f3 = std::async(std::launch::async, [&] {
-		przepisanie_oct_t_ppoz();
-		kolorowaniePpoz();
-		for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i) {
-
-			//int idx = floor(i*krok_przekrojePoziome);
-			//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-			//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice));
-
-		}
-	});
-	*/
-	cudaDeviceSynchronize();
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	printf("czas kolorowanie_oct: %f\n", j);
@@ -647,184 +590,178 @@ void CudaTekstury::kopiowaniePrzekrojow() {
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-/*
-	auto f1 = std::async(std::launch::async, [&] {
-		for (int i = 0; i < liczbaBskanow; ++i) {
+	cudaDeviceSynchronize();
 
-			
-			//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-			//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[0]));
+//	std::future<void> f1;
+//	std::future<void> f2;
+//	std::future<void> f3;
 
-		}
+	std::thread t1;
+	std::thread t2;
+	std::thread t3;
+
+	switch (trybWyswietlania) {
+
+	case WIZUALIZACJA::TYP_3D:
+/*	
+		f1 = std::async(std::launch::async, [&] {
+			for (int i = 0; i < liczbaBskanow; ++i)
+				HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(uchar4), szerokoscBskanu * sizeof(uchar4), rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[0]));
+
+		});
+
+		f2 = std::async(std::launch::async, [&] {
+
+			for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i)
+				HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(uchar4), szerokoscBskanu * sizeof(uchar4), glebokoscPomiaru, cudaMemcpyDeviceToDevice, streams[1]));
+
+		});
+
+		f3 = std::async(std::launch::async, [&] {
+
+			for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i)
+				HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(uchar4), glebokoscPomiaru * sizeof(uchar4), rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[2]));
+
+		});
+*/
+	t1 = std::thread([&] {
+		for (int i = 0; i < liczbaBskanow; ++i)
+			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(uchar4), szerokoscBskanu * sizeof(uchar4), rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[0]));
+
 	});
 
-	auto f2 = std::async(std::launch::async, [&] {
+	t2 = std::thread([&] {
 
-		for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i) {
+		for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i)
+			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(uchar4), szerokoscBskanu * sizeof(uchar4), glebokoscPomiaru, cudaMemcpyDeviceToDevice, streams[1]));
 
-			//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-			//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice, streams[1]));
-
-		}
 	});
+
+	t3 = std::thread([&] {
+		for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i)
+			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(uchar4), glebokoscPomiaru * sizeof(uchar4), rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[2]));
+
+	});
+		break;
+
+	case WIZUALIZACJA::TYP_2D:
+//		f1 = std::async(std::launch::async, [&] {
+//			for (int i = 0; i < liczbaBskanow; ++i)
+//				HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(uchar4), szerokoscBskanu * sizeof(uchar4), rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[0]));
+
+//		});
+
+
+		t1 = std::thread([&] {
+			for (int i = 0; i < liczbaBskanow; ++i)
+				HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(uchar4), szerokoscBskanu * sizeof(uchar4), rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[0]));
+
+		});
+
+		break;
+	}
 	
-	auto f3 = std::async(std::launch::async, [&] {
-
-		for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i) {
-
-			
-			//HANDLE_ERROR(cudaMemcpyToArray(tabliceCuda2[i],0,0,daneGPU_tab+i*rozmiarAskanu*szerokoscBskanu,rozmiarAskanu*szerokoscBskanu*sizeof(uchar4),cudaMemcpyDeviceToDevice));
-			//HANDLE_ERROR(cudaMemcpyToArray(tabA[i], 0, 0, daneGPU_tab + i*rozmiarAskanu*szerokoscBskanu, rozmiarAskanu*szerokoscBskanu * sizeof(uchar4), cudaMemcpyDeviceToDevice));
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i+liczbaBskanow+liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[2]));
-
-		}
-	});
-	*/
-
-
-
-	
-	std::thread t1([&]{
-	//	bskan_przepisanie_i_kolorowanie();
-	for (int i = 0; i < liczbaBskanow; ++i) {
-
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[0]));
-
-	}
-	});
-
-	std::thread t2([&]{
-		
-	//	ppop_przepisanie_i_kolorowanie();
-	for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i) {
-
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice, streams[1]));
-
-	}
-	});
-
-	std::thread t3([&]{
-	//	ppoz_przepisanie_i_kolorowanie();
-	for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i) {
-
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice,streams[2]));
-
-	}
-	});
-
 	t1.join();
-	t2.join();
-	t3.join();
+	if (trybWyswietlania == WIZUALIZACJA::TYP_3D) {
+		t2.join();
+		t3.join();
+	}
+	;
 	
-	//cudaDeviceSynchronize();
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
-	//	printf("czas kopiowania cudaMemcpy2DtoArray: %f\n", j);
+	printf("czas kopiowania cudaMemcpy2DtoArray: %f\n", j);
 }
 
 
-__global__ void odswiezaniePrzekroju(uchar4 *dane, const uchar4 *kolory) {
+__global__ void odswiezaniePrzekroju(uchar4 *dane, const uchar4 *kolory,bool czyRGB) {
 
 	if (threadIdx.x < blockDim.x) {
 
 		unsigned char src = dane[blockIdx.x*blockDim.x + threadIdx.x].w;
-		uchar4 nowy = kolory[src];
-	//	nowy.x = 255;
-	//	nowy.y = 0;
-	//	nowy.z = 0;
-		nowy.w = src;
-		dane[blockIdx.x*blockDim.x + threadIdx.x] = nowy;
+		uchar4 tmp;
+		if (czyRGB) {
+
+			tmp = kolory[src];
+			
+		} else {
+
+			tmp.x = kolory[src].w;
+			tmp.y = kolory[src].w;
+			tmp.z = kolory[src].w;
+
+		}
+		
+		tmp.w = src;
+		dane[blockIdx.x*blockDim.x + threadIdx.x] = tmp;
 	}
 }
 
 void CudaTekstury::odswiez_bskany() {
-	
+	cudaFuncSetCacheConfig(odswiezaniePrzekroju, cudaFuncCachePreferL1);
 	dim3 block(szerokoscBskanu);
 	dim3 grid(rozmiarAskanu*liczbaBskanow);
-	//odswiezaniePrzekroju << <grid, block, 0, streams[0] >> > (daneGPU_bskan_kolor, d_mapaKolory_Szarosc);
-	odswiezaniePrzekroju << <grid, block>> > (daneGPU_bskan_kolor, d_mapaKolory_Szarosc);
+	odswiezaniePrzekroju << <grid, block, 0, streams[0] >> > (daneGPU_bskan_kolor, d_mapaKolory_Szarosc,kolor);
+	//odswiezaniePrzekroju << <grid, block>> > (daneGPU_bskan_kolor, d_mapaKolory_Szarosc,kolor);
 }
 
 void CudaTekstury::odswiez_przekrojePoprzeczne() {
-
+	cudaFuncSetCacheConfig(odswiezaniePrzekroju, cudaFuncCachePreferL1);
 	dim3 block(szerokoscBskanu);
 	dim3 grid(glebokoscPomiaru*liczbaPrzekrojowPoprzecznych);
-	//odswiezaniePrzekroju << <grid, block, 0, streams[1] >> > (daneGPU_ppop_kolor, d_mapaKolory_Szarosc);
-	odswiezaniePrzekroju << <grid, block>> > (daneGPU_ppop_kolor, d_mapaKolory_Szarosc);
+	odswiezaniePrzekroju << <grid, block, 0, streams[1] >> > (daneGPU_ppop_kolor, d_mapaKolory_Szarosc,kolor);
+	//odswiezaniePrzekroju << <grid, block>> > (daneGPU_ppop_kolor, d_mapaKolory_Szarosc,kolor);
 }
 
 void CudaTekstury::odswiez_przekrojePoziome() {
-
+	cudaFuncSetCacheConfig(odswiezaniePrzekroju, cudaFuncCachePreferL1);
 	dim3 block(glebokoscPomiaru);
 	dim3 grid(rozmiarAskanu*liczbaPrzekrojowPoziomych);
-	//odswiezaniePrzekroju << < grid, block, 0, streams[2] >> > (daneGPU_ppoz_kolor, d_mapaKolory_Szarosc);
-	odswiezaniePrzekroju << < grid, block>> > (daneGPU_ppoz_kolor, d_mapaKolory_Szarosc);
+	odswiezaniePrzekroju << < grid, block, 0, streams[2] >> > (daneGPU_ppoz_kolor, d_mapaKolory_Szarosc,kolor);
+	//odswiezaniePrzekroju << < grid, block>> > (daneGPU_ppoz_kolor, d_mapaKolory_Szarosc,kolor);
 }
 
 
-void CudaTekstury::pokolorujTeksturyIprzeslijDoTablicCuda(){
+void CudaTekstury::pokolorujTeksturyIprzeslijDoTablicCuda() {
 
 	LARGE_INTEGER countPerSec, tim1, tim2;
 	QueryPerformanceFrequency(&countPerSec);
 	QueryPerformanceCounter(&tim1);
-	cudaFuncSetCacheConfig(odswiezaniePrzekroju, cudaFuncCachePreferL1);
-/*	
-	auto f1 = std::async(std::launch::async, [&] {
-		odswiez_bskany();
-		for (int i = 0; i < liczbaBskanow; ++i) {
 
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[0]));
+//	std::future<void> f1;
+//	std::future<void> f2;
+//	std::future<void> f3;
 
-		}});
-	auto f2 = std::async(std::launch::async, [&] {
-		odswiez_przekrojePoprzeczne();
-		for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i) {
+	std::thread t1;
+	std::thread t2;
+	std::thread t3;
 
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice, streams[1]));
+	switch (trybWyswietlania) {
 
-		}});
-	auto f3 = std::async(std::launch::async, [&] {
-		odswiez_przekrojePoziome();
-		for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i) {
-
-			HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice, streams[2]));
-
-		}});
-
-		*/
+	case WIZUALIZACJA::TYP_3D:
 	
-	std::thread t1([&] {
-	odswiez_bskany();
-	for (int i = 0; i < liczbaBskanow; ++i) {
-
-		//HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice,streams[0]));
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i], 0, 0, daneGPU_bskan_kolor + i*rozmiarAskanu*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice));
-
-	}});
-	std::thread t2([&] {
-	odswiez_przekrojePoprzeczne();
-	for (int i = 0; i < liczbaPrzekrojowPoprzecznych; ++i) {
-
-		//HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice,streams[1]));
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow], 0, 0, daneGPU_ppop_kolor + i*glebokoscPomiaru*szerokoscBskanu, szerokoscBskanu * sizeof(char) * 4, szerokoscBskanu * sizeof(char) * 4, glebokoscPomiaru, cudaMemcpyDeviceToDevice));
-
-	}});
-	std::thread t3([&] {
-	odswiez_przekrojePoziome();
-	for (int i = 0; i < liczbaPrzekrojowPoziomych; ++i) {
-
-		//HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice,streams[2]));
-		HANDLE_ERROR(cudaMemcpy2DToArrayAsync(tabliceCuda[i + liczbaBskanow + liczbaPrzekrojowPoprzecznych], 0, 0, daneGPU_ppoz_kolor + i*glebokoscPomiaru*rozmiarAskanu, glebokoscPomiaru * sizeof(char) * 4, glebokoscPomiaru * sizeof(char) * 4, rozmiarAskanu, cudaMemcpyDeviceToDevice));
-
-	}});
+//		f1 = std::async(std::launch::async, [&] {odswiez_bskany(); });
+//		f2 = std::async(std::launch::async, [&] {odswiez_przekrojePoprzeczne(); });
+//		f3 = std::async(std::launch::async, [&] {odswiez_przekrojePoziome(); });
+	
+		t1 = std::thread([&] {odswiez_bskany(); });
+		t2 = std::thread([&] {odswiez_przekrojePoprzeczne(); });
+		t3 = std::thread([&] {odswiez_przekrojePoziome(); });
+		break;
+	case WIZUALIZACJA::TYP_2D:
+//		f1 = std::async(std::launch::async, [&] {odswiez_bskany(); });
+		t1 = std::thread([&] {odswiez_bskany(); });
+		break;
+	}
 
 	t1.join();
-	t2.join();
-	t3.join();
-	
-	
+	if (trybWyswietlania == WIZUALIZACJA::TYP_3D) {
+		t2.join();
+		t3.join();
+	}
+
+
+	kopiowaniePrzekrojow();
 	QueryPerformanceCounter(&tim2);
 	double j = (double)(tim2.QuadPart - tim1.QuadPart) / countPerSec.QuadPart * 1000;
 	//	printf("czas odswiezania: %f\n", j);

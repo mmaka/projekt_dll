@@ -46,6 +46,7 @@ private:
 	float OdlegloscKamery() const;
 	TrybKontroliKamery trybKontroliKamery = tkkArcBall;
 	void ModyfikujPolozenieKamery(Macierz4 macierzPrzeksztalcenia);
+	float przezroczystosc;
 
 protected:
 
@@ -73,22 +74,26 @@ protected:
 
 	bool kolor;
 	void UsunTekstury();
-	TomogramTekstury *tekstury;
+	TomogramTekstury tekstury;
 	std::unique_ptr<CudaTekstury> cudaTekstury;
+	
 	LARGE_INTEGER countPerSec, tim1, tim2;
 public:
 
 	bool zmianaKoloru;
 	bool flaga;
+	bool tryb2Dgotowy;
+
 	visualizationParams parametryWyswietlania;
-	
-public:
-	OknoGL(visualizationParams& params, std::unique_ptr<CudaTekstury>& cTekstury)
+	inline void zwiekszPrzezroczystosc() { if(przezroczystosc<1.0f) przezroczystosc += 0.01f; }
+	inline void zmniejszPrzezroczystosc() { if (przezroczystosc > 0.0f) przezroczystosc -= 0.01f; }
+
+	OknoGL(visualizationParams& params, char* dane,unsigned char defKol[256][3])
 		: Okno(),
 		uchwytRC(NULL), uchwytDC(NULL),
 		macierzSwiata(Macierz4::Jednostkowa), macierzWidoku(Macierz4::Jednostkowa), macierzRzutowania(Macierz4::Jednostkowa),
 		MVP(Macierz4::Jednostkowa), VP(Macierz4::Jednostkowa),
-		swobodneObrotyKameryAktywne(false), teksturowanieWlaczone(true), kolor(true), zmianaKoloru(false), flaga(true), parametryWyswietlania(params),cudaTekstury(std::move(cTekstury)) {}
+		swobodneObrotyKameryAktywne(false), teksturowanieWlaczone(true), kolor(true), zmianaKoloru(false),przezroczystosc(0.02f), tryb2Dgotowy(false), flaga(true), parametryWyswietlania(params),cudaTekstury(std::make_unique<CudaTekstury>(params,dane,defKol))/*cudaTekstury(std::move(cTekstury))*/ {}
 	LRESULT __stdcall WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 };
 
@@ -96,24 +101,15 @@ public:
 extern class Wizualizator {
 
 	visualizationParams params;
-	std::thread wyswietlacz;
-	std::unique_ptr<CudaTekstury> cudaTekstury;
 	char *dane;
 	unsigned char defKol[256][3];
 	std::unique_ptr<OknoGL> okno;
 
 public:
 	std::unique_ptr<OknoGL>& getOkno() { return okno; }
-	void initCuda() {
-
-
-		//cudaTeksturyZ = new CudaTekstury(paramsZ);
-		cudaTekstury = std::make_unique<CudaTekstury>(params,dane,defKol);
-		//cudaTeksturyZ->init();
-	}
 	int StworzOkno() {
 
-		okno = std::make_unique<OknoGL>(params, cudaTekstury);
+		okno = std::make_unique<OknoGL>(params,dane,defKol);
 		POINT polozenieOkna = { 100,100 };
 		POINT rozmiarOkna = { 800,600 };
 		if (!okno->Inicjuj(hInstance, polozenieOkna, rozmiarOkna)) {
@@ -126,12 +122,12 @@ public:
 	
 	void wyswietlOkno() {
 
-		wyswietlacz = std::thread([&] {StworzOkno(); });
-		wyswietlacz.detach();
+		StworzOkno();
+		
 	}
 
 
-	void setParams(WIZUALIZACJA type, size ileBskanow, size ilePrzekrojowPoprzecznych, size ilePrzekrojowPoziomych, float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize, size ascanSize, size depth, float x_size_mm, float y_size_mm, float z_size_mm, int jasn, int kontr,char *plik,char* kolory)
+	void setParams(WIZUALIZACJA type, size ileBskanow, size ilePrzekrojowPoprzecznych, size ilePrzekrojowPoziomych, float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize, size ascanSize, size depth, float x_size_mm, float y_size_mm, float z_size_mm, int jasn, int kontr)
 	{
 		params.typ = type;
 		params.liczbaBskanow = ileBskanow;
@@ -148,10 +144,9 @@ public:
 		params.z_mm = z_size_mm;
 		params.jasnosc = jasn;
 		params.kontrast = kontr;
-		wczytajDaneBinarne(plik);
-		pobierzDefinicjeKolorow(kolory);
+	
 	}
-	void wczytajDaneBinarne(char *nazwaPliku) {
+	void wczytajDaneBinarne(const char *nazwaPliku) {
 
 		std::ifstream plik(nazwaPliku, std::ios::in | std::ios::binary);
 
@@ -175,7 +170,7 @@ public:
 		plik.close();
 	}
 
-	void pobierzDefinicjeKolorow(char *nazwaPliku) {
+	void pobierzDefinicjeKolorow(const char *nazwaPliku) {
 
 		FILE *plik;
 		errno_t err = fopen_s(&plik, nazwaPliku, "rb");

@@ -19,25 +19,25 @@ LRESULT CALLBACK  WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 
-OCTVIEWER_API void setParams(WIZUALIZACJA type, size ileBskanow,size ilePrzekrojowPoprzecznych,size ilePrzekrojowPoziomych, float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize, size ascanSize, size depth, float x_size_mm, float y_size_mm, float z_size_mm,int jasn,int kontr,char *plik,char *kolory)
+OCTVIEWER_API void setParams(WIZUALIZACJA type, size ileBskanow,size ilePrzekrojowPoprzecznych,size ilePrzekrojowPoziomych, float xSizeScale, float ySizeScale, float zSizeScale, size bscanSize, size ascanSize, size depth, float x_size_mm, float y_size_mm, float z_size_mm,int jasn,int kontr)
 {
-	wizualizator().setParams(type, ileBskanow, ilePrzekrojowPoprzecznych, ilePrzekrojowPoziomych, xSizeScale,ySizeScale,zSizeScale,bscanSize, ascanSize, depth, x_size_mm, y_size_mm,z_size_mm,jasn,kontr,plik,kolory);
+	wizualizator().setParams(type, ileBskanow, ilePrzekrojowPoprzecznych, ilePrzekrojowPoziomych, xSizeScale,ySizeScale,zSizeScale,bscanSize, ascanSize, depth, x_size_mm, y_size_mm,z_size_mm,jasn,kontr);
 };
 
 
 OCTVIEWER_API void init()
 {
-	wizualizator().initCuda();
+	
 }
 
 OCTVIEWER_API void loadData(const char* plik)
 {
-
+	wizualizator().wczytajDaneBinarne(plik);
 }
 
-OCTVIEWER_API void updateData()
+OCTVIEWER_API void loadColorDef(const char* plik)
 {
-
+	wizualizator().pobierzDefinicjeKolorow(plik);
 }
 
 OCTVIEWER_API void display()

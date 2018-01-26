@@ -2,7 +2,7 @@
 
 
 CrossSection::CrossSection(GLuint atrybutPolozenie, GLuint atrybutWspolrzedneTeksturowania, GLuint atrybutKolor, float dlugoscKrawedziX, float dlugoscKrawedziY)
-	: liczbaWerteksow(-1), MacierzSwiata(Macierz4::Jednostkowa), przezroczystosc(1.0f),	IndeksTekstury(-1), dlugoscKrawedziX(dlugoscKrawedziX), dlugoscKrawedziY(dlugoscKrawedziY) {
+	: liczbaWerteksow(-1), MacierzSwiata(Macierz4::Jednostkowa), IndeksTekstury(-1), dlugoscKrawedziX(dlugoscKrawedziX), dlugoscKrawedziY(dlugoscKrawedziY) {
 
 	Inicjuj(atrybutPolozenie, atrybutWspolrzedneTeksturowania, atrybutKolor);
 }
@@ -49,15 +49,20 @@ unsigned int CrossSection::TworzTabliceWerteksow(Werteks*& werteksy) {
 //	werteksy[2] = Werteks(-x0, y0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 //	werteksy[3] = Werteks(x0, y0, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 
-//	werteksy[0] = Werteks(-x0, -y0, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+//	werteksy[0] = Werteks(-x0, -y0, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f);
 //	werteksy[1] = Werteks(x0, -y0, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
-//	werteksy[2] = Werteks(-x0, y0, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f);
+//	werteksy[2] = Werteks(-x0, y0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 //	werteksy[3] = Werteks(x0, y0, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 
-	werteksy[0] = Werteks(-x0, -y0, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f);
-	werteksy[1] = Werteks(x0, -y0, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f);
-	werteksy[2] = Werteks(-x0, y0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
-	werteksy[3] = Werteks(x0, y0, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+	werteksy[0] = Werteks(-x0, -y0, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+	werteksy[1] = Werteks(x0, -y0, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f);
+	werteksy[2] = Werteks(-x0, y0, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	werteksy[3] = Werteks(x0, y0, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+
+//	werteksy[0] = Werteks(-x0, -y0, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f);
+//	werteksy[1] = Werteks(x0, -y0, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f);
+//	werteksy[2] = Werteks(-x0, y0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+//	werteksy[3] = Werteks(x0, y0, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 
 
 	return 4;

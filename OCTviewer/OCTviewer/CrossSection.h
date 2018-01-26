@@ -16,11 +16,9 @@ class CrossSection {
 public:
 	
 	CrossSection(GLuint atrybutPolozenie, GLuint atrybutWspolrzedneTeksturowania, GLuint atrybuKolor, float dlugoscKrawedziX = 2.0f, float dlugoscKrawedziY = 2.0f);
-	Macierz4 MacierzSwiata;
-	void Inicjuj(GLuint atrybutPolozenie, GLuint atrybutWspolrzedneTeksturowania, GLuint atrybutKolor);
-	void Rysuj();
 	GLuint IndeksTekstury;
-	GLuint IndeksTekstury2;
-	float przezroczystosc;
+	Macierz4 MacierzSwiata;
+	void Rysuj();
+	void Inicjuj(GLuint atrybutPolozenie, GLuint atrybutWspolrzedneTeksturowania, GLuint atrybutKolor);
 	~CrossSection();
 };

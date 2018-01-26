@@ -30,12 +30,11 @@ using oct_t = char;
 
 enum class EDYCJA_MAPY_KOLOROW {ZMNIEJSZ_KONTRAST,ZWIEKSZ_KONTRAST,ZMNIEJSZ_JASNOSC,ZWIEKSZ_JASNOSC};
 
+
+
 class CudaTekstury {
 
 	std::vector<cudaArray_t> tabliceCuda;
-	std::vector<cudaSurfaceObject_t> bskany;
-	std::vector<cudaSurfaceObject_t> przekrojePoprzeczne;
-	std::vector<cudaSurfaceObject_t> przekrojePoziome;
 	std::vector<cudaStream_t> streams;
 
 //	unsigned int *daneGPU;
@@ -65,7 +64,7 @@ class CudaTekstury {
 	size krok_przekrojePoziome;
 
 
-	const size liczbaStrumieni = 3;
+	size liczbaStrumieni = 3;
 	oct_t *daneCPU;//tmp
 	//mapa kolorów
 	int jasnosc, kontrast;
@@ -74,28 +73,40 @@ class CudaTekstury {
 	uchar4 *d_mapaKolory_Szarosc;
 	bool inicjalizacja = false;
 	bool kolor;
+	std::atomic_flag zmianaTrybuRGBnaGS = ATOMIC_FLAG_INIT;
+	std::atomic_flag przetwarzanieMapyKolorow = ATOMIC_FLAG_INIT;
+	WIZUALIZACJA trybWyswietlania;
 
 public:
 	 explicit CudaTekstury(visualizationParams params,char* dane,unsigned char kolory[256][3]): 
-		liczbaBskanow(params.liczbaBskanow), 
-		liczbaPrzekrojowPoprzecznych(params.liczbaPrzekrojowPoprzecznych), 
-		liczbaPrzekrojowPoziomych(params.liczbaPrzekrojowPoziomych),
-		jasnosc(params.jasnosc),
-		kontrast(params.kontrast), 
-		rozmiarAskanu(params.ascanSize_px),
-		szerokoscBskanu(params.bscanSize_px),
-		glebokoscPomiaru(params.depth_px),daneCPU(dane),kolor(true){
+	
+		 jasnosc(params.jasnosc),
+		 kontrast(params.kontrast), 
+		 rozmiarAskanu(params.ascanSize_px),
+		 szerokoscBskanu(params.bscanSize_px),
+		 glebokoscPomiaru(params.depth_px),
+		 daneCPU(dane),
+		 kolor(true),
+		 trybWyswietlania(params.typ){
 
+		 //jakis swap trzeba tu zrobic
 		 for (int i = 0; i < 256; ++i) {
 			 defKol[i][0] = kolory[i][0];
 			 defKol[i][1] = kolory[i][1];
 			 defKol[i][2] = kolory[i][2];
 		}
-			
-		krok_bskan = (float)glebokoscPomiaru / (liczbaBskanow-1);
-		krok_przekrojePoprzeczne = (float)rozmiarAskanu / (liczbaPrzekrojowPoprzecznych-1);
-		krok_przekrojePoziome = (float)szerokoscBskanu / (liczbaPrzekrojowPoziomych-1);
-	
+		
+		 liczbaBskanow = params.liczbaBskanow;
+		 krok_bskan = (float)glebokoscPomiaru / (liczbaBskanow-1);
+
+		 if (params.typ == WIZUALIZACJA::TYP_3D) {
+
+			 liczbaStrumieni = 3;
+			 liczbaPrzekrojowPoprzecznych=params.liczbaPrzekrojowPoprzecznych;
+			 liczbaPrzekrojowPoziomych=params.liczbaPrzekrojowPoziomych;
+			 krok_przekrojePoprzeczne = (float)rozmiarAskanu / (liczbaPrzekrojowPoprzecznych - 1);
+			 krok_przekrojePoziome = (float)szerokoscBskanu / (liczbaPrzekrojowPoziomych - 1);
+		 }
 	}
 	
 	CudaTekstury(const CudaTekstury&) = delete;
@@ -103,9 +114,9 @@ public:
 	void init();
 	std::vector<cudaArray_t>& cudaArray() { return tabliceCuda; }
 	void pobierzDaneCPU();
-	inline size liczbaPrzekrojow() const { return liczbaBskanow +liczbaPrzekrojowPoziomych + liczbaPrzekrojowPoprzecznych;}
 	inline size_t calkowityRozmiarDanych() const { return rozmiarAskanu*szerokoscBskanu*glebokoscPomiaru; }
 	void ustawMapeKolorow();
+	void trybWyswietlaniaRGBczyGS();
 	void edycjaMapyKolorow(EDYCJA_MAPY_KOLOROW tryb, int value);
 	void odswiez_bskany();
 	void odswiez_przekrojePoprzeczne();
@@ -127,22 +138,17 @@ public:
 
 	~CudaTekstury(){
 
-		HANDLE_ERROR(cudaFree(daneGPU));
-		HANDLE_ERROR(cudaFree(daneGPU_bskan_oct));
-		HANDLE_ERROR(cudaFree(daneGPU_ppop_oct));
-		HANDLE_ERROR(cudaFree(daneGPU_ppoz_oct));
-		HANDLE_ERROR(cudaFree(daneGPU_bskan_kolor));
-		HANDLE_ERROR(cudaFree(daneGPU_ppop_kolor));
-		HANDLE_ERROR(cudaFree(daneGPU_ppoz_kolor));
-		HANDLE_ERROR(cudaFree(daneGPU_tab));
-		HANDLE_ERROR(cudaFree(daneGPU_ppop));
-		HANDLE_ERROR(cudaFree(daneGPU_ppoz));
+		
+//		HANDLE_ERROR(cudaFree(daneGPU_tab));
+//		HANDLE_ERROR(cudaFree(daneGPU_ppop));
+//		HANDLE_ERROR(cudaFree(daneGPU_ppoz));
 
 	}
 };
 
-static void ustanowienieWspolpracyCudaOpenGL(GLuint* indeksy, std::vector<cudaArray_t>& tablice_cuda, int ileTekstur) {
+static void ustanowienieWspolpracyCudaOpenGL(const std::vector<GLuint>& indeksy, std::vector<cudaArray_t>& tablice_cuda) {
 
+	size_t ileTekstur = indeksy.size();
 	cudaGraphicsResource_t* resources = new cudaGraphicsResource_t[ileTekstur];
 	cudaStream_t strumien;
 	cudaStreamCreate(&strumien);
